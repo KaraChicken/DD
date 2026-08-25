@@ -6,7 +6,6 @@ export interface AuthenticatedAccount {
   userId: number
   username: string
   email: string | null
-  nickname: string | null
 }
 
 /**
@@ -40,26 +39,15 @@ export async function authenticateLegacyAccount(
 
   const account = await pool.request()
     .input('UserID', sql.Int, userId)
-    .query<{
-      UserName: string | null
-      NickName: string | null
-      Email: string | null
-    }>(`
-      SELECT TOP 1
-        u.UserName,
-        u.NickName,
-        ui.Email
-      FROM Mem_Users AS u
-      LEFT JOIN Mem_UserInfo AS ui ON ui.UserID = u.UserID
-      WHERE u.UserID = @UserID
+    .query<{ Email: string | null }>(`
+      SELECT TOP 1 Email
+      FROM Mem_UserInfo
+      WHERE UserID = @UserID
     `)
-
-  const row = account.recordset[0]
 
   return {
     userId,
-    username: row?.UserName ?? username,
-    email: row?.Email ?? null,
-    nickname: row?.NickName ?? null,
+    username,
+    email: account.recordset[0]?.Email ?? null,
   }
 }
