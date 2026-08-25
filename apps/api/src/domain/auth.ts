@@ -1,5 +1,7 @@
 import { createHash } from 'node:crypto'
 import sql from 'mssql'
+import { env } from '../config.js'
+import { findAccountByUsername, createAccount } from '../infrastructure/sqlite.js'
 import { getSqlPool } from '../infrastructure/sqlserver.js'
 
 export interface AuthenticatedAccount {
@@ -7,6 +9,27 @@ export interface AuthenticatedAccount {
   username: string
   nickname: string
   email: string | null
+  sex: boolean
+  money: number
+  giftToken: number
+  gold: number
+  gp: number
+  grade: number
+  attack: number
+  defence: number
+  agility: number
+  luck: number
+  winCount: number
+  totalCount: number
+  escapeCount: number
+  repute: number
+  consortiaId: number
+  consortiaName: string
+  offer: number
+  skin: string
+  style: string
+  colors: string
+  fightPower: number
 }
 
 export interface RegistrationInput {
@@ -18,41 +41,67 @@ export interface RegistrationInput {
 
 export type RegistrationFailure = 'USERNAME_EXISTS' | 'REGISTER_FAILED'
 
+function passwordMd5(password: string) {
+  return createHash('md5').update(password, 'utf8').digest('hex').toUpperCase()
+}
+
 export async function authenticateLegacyAccount(
   username: string,
   password: string,
 ): Promise<AuthenticatedAccount | null> {
-  const passwordMd5 = createHash('md5')
-    .update(password, 'utf8')
-    .digest('hex')
-    .toUpperCase()
+  const passwordHash = passwordMd5(password)
+
+  if (env.DATABASE_DRIVER === 'sqlite') {
+    const account = findAccountByUsername(username)
+    if (!account || account.passwordMd5 !== passwordHash) return null
+
+    return {
+      userId: account.userId,
+      username: account.username,
+      nickname: account.nickname,
+      email: account.email,
+      sex: account.sex !== 0,
+      money: account.money,
+      giftToken: account.giftToken,
+      gold: account.gold,
+      gp: account.gp,
+      grade: account.grade,
+      attack: account.attack,
+      defence: account.defence,
+      agility: account.agility,
+      luck: account.luck,
+      winCount: account.winCount,
+      totalCount: account.totalCount,
+      escapeCount: account.escapeCount,
+      repute: account.repute,
+      consortiaId: account.consortiaId,
+      consortiaName: account.consortiaName,
+      offer: account.offer,
+      skin: account.skin,
+      style: account.style,
+      colors: account.colors,
+      fightPower: account.fightPower,
+    }
+  }
 
   const pool = await getSqlPool()
   const result = await pool.request()
     .input('ApplicationName', sql.VarChar(64), 'DanDanTang')
     .input('UserName', sql.VarChar(64), username)
-    .input('Password', sql.VarChar(64), passwordMd5)
+    .input('Password', sql.VarChar(64), passwordHash)
     .query<{ UserID: number | null }>(`
       DECLARE @UserID INT;
-
-      EXEC Mem_Users_Accede
-        @ApplicationName,
-        @UserName,
-        @Password,
-        @UserID OUTPUT;
-
+      EXEC Mem_Users_Accede @ApplicationName, @UserName, @Password, @UserID OUTPUT;
       SELECT @UserID AS UserID;
     `)
 
   const userId = Number(result.recordset[0]?.UserID)
-  if (!Number.isInteger(userId) || userId < 0) {
-    return null
-  }
+  if (!Number.isInteger(userId) || userId < 0) return null
 
   const account = await pool.request()
     .input('UserID', sql.Int, userId)
-    .query<{ Email: string | null; NickName: string | null }>(`
-      SELECT TOP 1 Email, NickName
+    .query<{ NickName: string | null; Email: string | null }>(`
+      SELECT TOP 1 NickName, Email
       FROM Mem_UserInfo
       WHERE UserID = @UserID
     `)
@@ -62,15 +111,45 @@ export async function authenticateLegacyAccount(
     username,
     nickname: account.recordset[0]?.NickName ?? username,
     email: account.recordset[0]?.Email ?? null,
+    sex: false,
+    money: 0,
+    giftToken: 0,
+    gold: 0,
+    gp: 0,
+    grade: 1,
+    attack: 0,
+    defence: 0,
+    agility: 0,
+    luck: 0,
+    winCount: 0,
+    totalCount: 0,
+    escapeCount: 0,
+    repute: 0,
+    consortiaId: 0,
+    consortiaName: '',
+    offer: 0,
+    skin: '',
+    style: ',,,,,,,,',
+    colors: ',,,,,,,,',
+    fightPower: 0,
   }
 }
 
-/** Compatibility adapter for the legacy SP_Account_Register flow. */
 export async function registerLegacyAccount(
   input: RegistrationInput,
 ): Promise<{ ok: true } | { ok: false; reason: RegistrationFailure }> {
-  const pool = await getSqlPool()
+  const hash = passwordMd5(input.password)
 
+  if (env.DATABASE_DRIVER === 'sqlite') {
+    return createAccount({
+      username: input.username,
+      passwordMd5: hash,
+      nickname: input.nickname,
+      sex: input.sex,
+    })
+  }
+
+  const pool = await getSqlPool()
   try {
     const result = await pool.request()
       .input('UserName', sql.VarChar(64), input.username)
@@ -82,22 +161,14 @@ export async function registerLegacyAccount(
       .input('Gold', sql.Int, 100)
       .query<{ Result: number }>(`
         DECLARE @Result INT;
-
-        EXEC @Result = SP_Account_Register
-          @UserName,
-          @Password,
-          @NickName,
-          @Sex,
-          @Money,
-          @GiftToken,
-          @Gold;
-
+        EXEC @Result = SP_Account_Register @UserName, @Password, @NickName, @Sex, @Money, @GiftToken, @Gold;
         SELECT @Result AS Result;
       `)
 
     const code = Number(result.recordset[0]?.Result)
-    if (code === 0) return { ok: true }
-    return { ok: false, reason: code === 2 ? 'USERNAME_EXISTS' : 'REGISTER_FAILED' }
+    return code === 0
+      ? { ok: true }
+      : { ok: false, reason: code === 2 ? 'USERNAME_EXISTS' : 'REGISTER_FAILED' }
   } catch {
     return { ok: false, reason: 'REGISTER_FAILED' }
   }
