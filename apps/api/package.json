@@ -8,8 +8,11 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@fastify/cookie": "latest",
     "@fastify/cors": "latest",
+    "@fastify/jwt": "latest",
     "fastify": "latest",
+    "mssql": "latest",
     "zod": "latest"
   },
   "devDependencies": {
