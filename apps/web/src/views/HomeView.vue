@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { storeToRefs } from 'pinia'
+import { useAuthStore } from '../stores/auth'
 import SiteHeader from '../components/SiteHeader.vue'
 import LegacyFlashLauncher from '../components/LegacyFlashLauncher.vue'
 import LoginPanel from '../components/LoginPanel.vue'
@@ -12,12 +14,14 @@ import WeaponShowcase from '../components/WeaponShowcase.vue'
 import SiteFooter from '../components/SiteFooter.vue'
 import AppModal from '../components/AppModal.vue'
 
+const auth = useAuthStore()
+const { loading: loginLoading, error: loginError } = storeToRefs(auth)
 const registerOpen = ref(false)
 const recoverOpen = ref(false)
 
-function handleLogin(username: string, password: string) {
-  // TODO: connect to the future Node.js API.
-  console.debug('login requested', { username, password })
+async function handleLogin(username: string, password: string) {
+  if (!username || !password) return
+  await auth.login(username, password)
 }
 </script>
 
@@ -31,6 +35,8 @@ function handleLogin(username: string, password: string) {
           <div class="login p-r clearfix">
             <LegacyFlashLauncher />
             <LoginPanel
+              :loading="loginLoading"
+              :error="loginError"
               @login="handleLogin"
               @register="registerOpen = true"
               @recover="recoverOpen = true"
