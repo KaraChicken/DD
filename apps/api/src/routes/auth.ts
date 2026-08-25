@@ -10,25 +10,14 @@ const loginSchema = z.object({
 export async function authRoutes(app: FastifyInstance) {
   app.post('/api/auth/login', async (request, reply) => {
     const result = loginSchema.safeParse(request.body)
-
     if (!result.success) {
-      return reply.code(400).send({
-        message: 'Invalid login payload',
-        code: 'INVALID_LOGIN_PAYLOAD',
-      })
+      return reply.code(400).send({ message: '帳號或密碼格式錯誤', code: 'INVALID_LOGIN_PAYLOAD' })
     }
 
     try {
-      const account = await authenticateLegacyAccount(
-        result.data.username,
-        result.data.password,
-      )
-
+      const account = await authenticateLegacyAccount(result.data.username, result.data.password)
       if (!account) {
-        return reply.code(401).send({
-          message: 'Invalid username or password',
-          code: 'INVALID_CREDENTIALS',
-        })
+        return reply.code(401).send({ message: '帳號或密碼錯誤', code: 'INVALID_CREDENTIALS' })
       }
 
       const token = await reply.jwtSign(
@@ -44,16 +33,10 @@ export async function authRoutes(app: FastifyInstance) {
         maxAge: 60 * 60 * 12,
       })
 
-      return {
-        ok: true,
-        user: account,
-      }
+      return { ok: true, user: account }
     } catch (error) {
       request.log.error({ err: error }, 'legacy authentication failed')
-      return reply.code(503).send({
-        message: 'Authentication service unavailable',
-        code: 'AUTH_SERVICE_UNAVAILABLE',
-      })
+      return reply.code(503).send({ message: '驗證服務暫時無法使用', code: 'AUTH_SERVICE_UNAVAILABLE' })
     }
   })
 
@@ -62,10 +45,7 @@ export async function authRoutes(app: FastifyInstance) {
       const payload = await request.jwtVerify<{ userId: number; username: string }>()
       return { ok: true, user: payload }
     } catch {
-      return reply.code(401).send({
-        message: 'Not authenticated',
-        code: 'NOT_AUTHENTICATED',
-      })
+      return reply.code(401).send({ message: '尚未登入', code: 'NOT_AUTHENTICATED' })
     }
   })
 
