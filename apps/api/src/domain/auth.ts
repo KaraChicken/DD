@@ -10,9 +10,11 @@ export interface AuthenticatedAccount {
 
 /**
  * Mirrors the legacy Web authentication contract.
- * The old PHP code sends an upper-case MD5 password to Mem_Users_Accede.
- * This is intentionally kept at the legacy boundary so the existing
- * account database and Flash game remain compatible.
+ * The old PHP code calls Mem_Users_Accede positionally with:
+ *   DanDanTang, UserName, UPPER(MD5(password)), UserID OUT
+ *
+ * Keep that positional contract here instead of guessing the stored
+ * procedure's parameter names. This is a compatibility boundary only.
  */
 export async function authenticateLegacyAccount(
   username: string,
@@ -24,15 +26,23 @@ export async function authenticateLegacyAccount(
     .toUpperCase()
 
   const pool = await getSqlPool()
-  const request = pool.request()
+  const result = await pool.request()
     .input('ApplicationName', sql.VarChar(64), 'DanDanTang')
     .input('UserName', sql.VarChar(64), username)
     .input('Password', sql.VarChar(64), passwordMd5)
-    .output('UserID', sql.Int)
+    .query<{ UserID: number | null }>(`
+      DECLARE @UserID INT;
 
-  await request.execute('Mem_Users_Accede')
+      EXEC Mem_Users_Accede
+        @ApplicationName,
+        @UserName,
+        @Password,
+        @UserID OUTPUT;
 
-  const userId = Number(request.parameters.UserID.value)
+      SELECT @UserID AS UserID;
+    `)
+
+  const userId = Number(result.recordset[0]?.UserID)
   if (!Number.isInteger(userId) || userId < 0) {
     return null
   }
