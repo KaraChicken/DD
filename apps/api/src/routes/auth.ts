@@ -1,8 +1,9 @@
 import { z } from 'zod'
 import type { FastifyInstance } from 'fastify'
+import { authenticateLegacyAccount } from '../domain/auth.js'
 
 const loginSchema = z.object({
-  username: z.string().min(1).max(64),
+  username: z.string().trim().min(1).max(64),
   password: z.string().min(1).max(256),
 })
 
@@ -11,19 +12,65 @@ export async function authRoutes(app: FastifyInstance) {
     const result = loginSchema.safeParse(request.body)
 
     if (!result.success) {
-      return reply.code(400).send({ message: 'Invalid login payload' })
+      return reply.code(400).send({
+        message: 'Invalid login payload',
+        code: 'INVALID_LOGIN_PAYLOAD',
+      })
     }
 
-    // The legacy Web implementation authenticates against SQL Server.
-    // Do not connect the new API directly to that database here yet.
-    // The next persistence step will introduce an AccountRepository/SaveStore.
-    request.log.info({ username: result.data.username }, 'login contract reached')
+    try {
+      const account = await authenticateLegacyAccount(
+        result.data.username,
+        result.data.password,
+      )
 
-    return reply.code(501).send({
-      message: 'Authentication backend is not connected yet',
-      code: 'AUTH_NOT_IMPLEMENTED',
-    })
+      if (!account) {
+        return reply.code(401).send({
+          message: 'Invalid username or password',
+          code: 'INVALID_CREDENTIALS',
+        })
+      }
+
+      const token = await reply.jwtSign(
+        { userId: account.userId, username: account.username },
+        { expiresIn: '12h' },
+      )
+
+      reply.setCookie('dd_session', token, {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: process.env.NODE_ENV === 'production',
+        path: '/',
+        maxAge: 60 * 60 * 12,
+      })
+
+      return {
+        ok: true,
+        user: account,
+      }
+    } catch (error) {
+      request.log.error({ err: error }, 'legacy authentication failed')
+      return reply.code(503).send({
+        message: 'Authentication service unavailable',
+        code: 'AUTH_SERVICE_UNAVAILABLE',
+      })
+    }
   })
 
-  app.post('/api/auth/logout', async () => ({ ok: true }))
+  app.get('/api/auth/me', async (request, reply) => {
+    try {
+      const payload = await request.jwtVerify<{ userId: number; username: string }>()
+      return { ok: true, user: payload }
+    } catch {
+      return reply.code(401).send({
+        message: 'Not authenticated',
+        code: 'NOT_AUTHENTICATED',
+      })
+    }
+  })
+
+  app.post('/api/auth/logout', async (_request, reply) => {
+    reply.clearCookie('dd_session', { path: '/' })
+    return { ok: true }
+  })
 }
