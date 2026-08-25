@@ -4,6 +4,8 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   HOST: z.string().default('127.0.0.1'),
   PORT: z.coerce.number().int().positive().default(3000),
+  DATABASE_DRIVER: z.enum(['sqlite', 'mssql']).default('sqlite'),
+  SQLITE_PATH: z.string().default('./data/dd.sqlite'),
   DB_SERVER: z.string().optional(),
   DB_PORT: z.coerce.number().int().positive().default(1433),
   DB_NAME: z.string().optional(),
@@ -11,7 +13,7 @@ const envSchema = z.object({
   DB_PASSWORD: z.string().optional(),
   DB_ENCRYPT: z.coerce.boolean().default(false),
   DB_TRUST_SERVER_CERTIFICATE: z.coerce.boolean().default(true),
-  SESSION_SECRET: z.string().min(32).optional(),
+  SESSION_SECRET: z.string().min(32).default('development-only-change-me-development-only'),
 })
 
 export const env = envSchema.parse(process.env)
@@ -37,9 +39,5 @@ export function requireDatabaseConfig() {
 }
 
 export function requireSessionSecret() {
-  if (!env.SESSION_SECRET) {
-    throw new Error('SESSION_SECRET must be configured')
-  }
-
   return env.SESSION_SECRET
 }
