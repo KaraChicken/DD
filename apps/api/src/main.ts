@@ -5,6 +5,7 @@ import jwt from '@fastify/jwt'
 import { env, requireSessionSecret } from './config.js'
 import { authRoutes } from './routes/auth.js'
 import { accountRoutes } from './routes/account.js'
+import { gameDataRoutes } from './routes/game-data.js'
 
 const app = Fastify({ logger: true })
 
@@ -16,6 +17,7 @@ await app.register(jwt, {
 })
 await app.register(authRoutes)
 await app.register(accountRoutes)
+await app.register(gameDataRoutes)
 
 app.get('/health', async () => ({
   status: 'ok',
