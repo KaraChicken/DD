@@ -6,6 +6,7 @@ import { env, requireSessionSecret } from './config.js'
 import { authRoutes } from './routes/auth.js'
 import { accountRoutes } from './routes/account.js'
 import { gameDataRoutes } from './routes/game-data.js'
+import { flashProtocolRoutes } from './routes/flash-protocol.js'
 
 const app = Fastify({ logger: true })
 
@@ -18,6 +19,7 @@ await app.register(jwt, {
 await app.register(authRoutes)
 await app.register(accountRoutes)
 await app.register(gameDataRoutes)
+await app.register(flashProtocolRoutes)
 
 app.get('/health', async () => ({
   status: 'ok',
