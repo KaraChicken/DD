@@ -10,7 +10,8 @@ This is the replacement local web host being introduced alongside the legacy PHP
 - Bundled character-reference seed is copied into the per-user database on first run.
 - Database files are stored outside the application folder at `%LOCALAPPDATA%\DDTank\data\ddtank.sqlite3`.
 - `/health/live` reports process liveness; `/health/ready` checks SQLite integrity and required character-reference data.
-- The host wires the first-character SQLite repository into dependency injection, but account endpoints and the Flash-compatible `VisualizeRegister.ashx` endpoint are not yet connected.
+- `POST /api/v1/accounts/register` creates only an account identity and stores an ASP.NET Core password hash; it does not create a character.
+- The host wires the first-character SQLite repository into dependency injection. The Flash-compatible `VisualizeRegister.ashx` endpoint and login/game-ticket flow are not yet connected.
 
 ## Run locally
 
