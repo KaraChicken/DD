@@ -75,22 +75,6 @@ def json_query(query: str) -> list[dict]:
     return json.loads("".join(lines[json_start:]))
 
 
-def bcp_json_query(query: str, export_name: str) -> list[dict]:
-    remote_path = f"/tmp/{export_name}"
-    local_path = REPORT / export_name
-    docker(
-        "exec", "-i", CONTAINER, "/opt/mssql-tools18/bin/bcp",
-        query, "queryout", remote_path,
-        "-S", "localhost", "-U", "sa", "-P", PASSWORD, "-C", "65001", "-c",
-    )
-    docker("cp", f"{CONTAINER}:{remote_path}", str(local_path))
-    try:
-        return json.loads(local_path.read_text(encoding="utf-8-sig"))
-    finally:
-        if local_path.exists():
-            local_path.unlink()
-
-
 def selected_procedure_definitions(db_name: str, names: list[str]) -> list[dict]:
     if not names:
         return []
@@ -110,21 +94,21 @@ def selected_procedure_definitions(db_name: str, names: list[str]) -> list[dict]
 def build_character_reference_seed(db_tank41: str, db_tank: str) -> dict:
     # These are the exact static tables referenced by SP_Users_RegisterNotValidate.
     # No account/player tables are read or copied.
-    shop_rows = bcp_json_query(f"""
+    shop_rows = json_query(f"""
     SET NOCOUNT ON;
     SELECT TemplateID, Pic, CategoryID, MaxCount, Attack, Defence, Agility, Luck
     FROM [{db_tank}].dbo.Shop_Goods
     ORDER BY TemplateID
     FOR JSON PATH;
-    """, "shop-goods-export.json")
-    bag_rows = bcp_json_query(f"""
+    """)
+    bag_rows = json_query(f"""
     SET NOCOUNT ON;
     SELECT ID, Sex, TemplateID, [Count] AS ItemCount, ValidDate, StrengthenLevel,
            AttackCompose, DefendCompose, LuckCompose, AgilityCompose, IsBinds, BagType, Place
     FROM [{db_tank41}].dbo.Bag_Init
     ORDER BY ID
     FOR JSON PATH;
-    """, "bag-init-export.json")
+    """)
     if not shop_rows:
         raise RuntimeError("The Db_Tank Shop_Goods reference table is empty; cannot build character seed.")
 
