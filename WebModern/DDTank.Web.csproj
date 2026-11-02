@@ -6,4 +6,8 @@
     <RootNamespace>DDTank.Web</RootNamespace>
     <AssemblyName>DDTank.Web</AssemblyName>
   </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../LocalData/DDTank.LocalData.csproj" />
+    <Content Include="Seeds/**/*" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>
