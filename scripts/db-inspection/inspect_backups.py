@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Restore SQL Server backups in an ephemeral CI container and export metadata only.
+"""Restore SQL Server backups in an ephemeral CI container and export metadata plus a filtered reference seed.
 
 Only reviewed reference/configuration rows are exported to a filtered SQLite seed. No account/player rows, credentials, or restored SQL Server database files are uploaded.
 """
