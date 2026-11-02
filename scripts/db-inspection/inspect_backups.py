@@ -41,7 +41,7 @@ def sql(query: str) -> str:
     return docker(
         "exec", "-i", CONTAINER, SQLCMD,
         "-S", "localhost", "-U", "sa", "-P", PASSWORD, "-C",
-        "-b", "-W", "-h", "-1", "-s", "|", "-y", "0", "-w", "65535", "-Q", query,
+        "-b", "-h", "-1", "-s", "|", "-y", "0", "-w", "65535", "-Q", query,
     )
 
 
