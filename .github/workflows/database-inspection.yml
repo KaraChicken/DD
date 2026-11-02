@@ -59,6 +59,16 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+
+      - name: Upload filtered SQLite character reference seed
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ddtank-character-reference-seed
+          path: artifacts/database-inspection/character-reference-seed.sqlite3
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Remove ephemeral SQL Server
         if: always()
         run: docker rm -f ddtank-sqlserver-inspect || true
