@@ -48,6 +48,28 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+  build-localdata:
+    name: Build and test embedded SQLite foundation
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore local database library
+        run: dotnet restore LocalData/DDTank.LocalData.csproj
+
+      - name: Build local database library
+        run: dotnet build LocalData/DDTank.LocalData.csproj --configuration Release --no-restore
+
+      - name: Run SQLite initialization, persistence, and backup smoke test
+        run: dotnet run --project LocalData.SmokeTest/LocalData.SmokeTest.csproj --configuration Release
+
+
   build-webmodern:
     name: Build replacement ASP.NET Core web host
     runs-on: windows-latest
