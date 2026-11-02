@@ -15,6 +15,7 @@ namespace DDTank.LocalData
         private const string InitialPvePermission = "FFFFFFFFFFF311111113311111111111111111111111111111";
         private readonly LocalSqliteDatabase _database;
 
+        /// <summary>Creates the first-character repository over the supplied local database.</summary>
         public CharacterCreationRepository(LocalSqliteDatabase database)
         {
             _database = database ?? throw new ArgumentNullException(nameof(database));
