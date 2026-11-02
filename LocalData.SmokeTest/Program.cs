@@ -61,7 +61,17 @@ CREATE TABLE BagInit (
     BagType INTEGER NOT NULL,
     Place INTEGER NOT NULL
 );
-INSERT INTO ShopGoods VALUES (1001, 'smoke.png', 1, 99, 1, 2, 3, 4);
+INSERT INTO ShopGoods VALUES
+    (1001, 'smoke.png', 1, 99, 1, 2, 3, 4),
+    (7008, 'dart', 7, 1, 60, 30, 250, 40),
+    (3158, 'hair58', 3, 1, 5, 5, 5, 5),
+    (6103, 'face2', 6, 1, 5, 5, 5, 5),
+    (5160, 'cloth60', 5, 1, 5, 5, 5, 5),
+    (1142, 'head51', 1, 1, 5, 5, 5, 5),
+    (3244, 'hair44', 3, 1, 5, 5, 5, 5),
+    (6204, 'face3', 6, 1, 5, 5, 5, 5),
+    (5276, 'cloth76', 5, 1, 5, 5, 5, 5),
+    (1214, 'head13', 1, 1, 5, 5, 5, 5);
 INSERT INTO CharacterDefaults VALUES (1, 7008, 3158, 6103, 5160, 1142);
 INSERT INTO CharacterDefaults VALUES (0, 7008, 3244, 6204, 5276, 1214);
 PRAGMA user_version = 2;";
@@ -121,6 +131,51 @@ PRAGMA user_version = 2;";
             throw new InvalidOperationException("CharacterDefaults rows were not imported exactly.");
     }
 
+    var characterRepository = new CharacterCreationRepository(database);
+    characterRepository.InitializeSchema();
+
+    var firstAccountId = characterRepository.CreateAccount("first.player", "test-password-hash");
+    var firstPlayerId = characterRepository.CreatePendingPlayer(firstAccountId, true, "127.0.0.1", "portable");
+    var firstCharacter = characterRepository.CompleteCharacterCreation(firstAccountId, "TestPlayer", 1, 30);
+    if (!firstCharacter.Success || firstCharacter.PlayerId != firstPlayerId)
+        throw new InvalidOperationException("The first character was not created successfully.");
+
+    using (var characterConnection = database.OpenConnection())
+    using (var characterCommand = characterConnection.CreateCommand())
+    {
+        characterCommand.CommandText = "SELECT COUNT(*) FROM PlayerInventory WHERE PlayerId = $playerId;";
+        characterCommand.Parameters.AddWithValue("$playerId", firstPlayerId);
+        if (Convert.ToInt32(characterCommand.ExecuteScalar()) != 5)
+            throw new InvalidOperationException("The first character did not receive the five configured appearance items.");
+
+        characterCommand.CommandText = "SELECT Attack, Defence, Agility, Luck FROM PlayerFightStats WHERE PlayerId = $playerId;";
+        using (var stats = characterCommand.ExecuteReader())
+        {
+            if (!stats.Read() || stats.GetInt32(0) != 60 || stats.GetInt32(1) != 30 ||
+                stats.GetInt32(2) != 250 || stats.GetInt32(3) != 40)
+                throw new InvalidOperationException("The starting combat attributes were not copied from the configured arm item.");
+        }
+    }
+
+    var secondAccountId = characterRepository.CreateAccount("second.player", "test-password-hash");
+    var secondPlayerId = characterRepository.CreatePendingPlayer(secondAccountId, false, "127.0.0.1", "portable");
+    var duplicateNickname = characterRepository.CompleteCharacterCreation(secondAccountId, "testplayer", 0, 30);
+    if (duplicateNickname.ResultCode != 2)
+        throw new InvalidOperationException("Nickname uniqueness did not match the case-insensitive SQL Server collation.");
+
+    var alreadyCreated = characterRepository.CompleteCharacterCreation(firstAccountId, "AnotherName", 1, 30);
+    if (alreadyCreated.ResultCode != 3)
+        throw new InvalidOperationException("The repository allowed a second character creation for the same account.");
+
+    using (var pendingConnection = database.OpenConnection())
+    using (var pendingCommand = pendingConnection.CreateCommand())
+    {
+        pendingCommand.CommandText = "SELECT NickName FROM Players WHERE PlayerId = $playerId;";
+        pendingCommand.Parameters.AddWithValue("$playerId", secondPlayerId);
+        if (!string.Equals(Convert.ToString(pendingCommand.ExecuteScalar()), string.Empty, StringComparison.Ordinal))
+            throw new InvalidOperationException("A rejected duplicate nickname partially modified the pending player.");
+    }
+
     var migrationApplied = database.ApplyMigration(1, @"
 CREATE TABLE ""SmokeTest"" (
     ""Id"" INTEGER NOT NULL PRIMARY KEY,
@@ -162,7 +217,7 @@ CREATE TABLE ""SmokeTest"" (
             throw new InvalidOperationException("The standalone backup did not retain character defaults.");
     }
 
-    Console.WriteLine($"PASS: seed import ({expectedShopGoods} ShopGoods, {expectedBagInit} BagInit, {expectedCharacterDefaults} CharacterDefaults), transactional migrations, persistence, integrity check, and backup.");
+    Console.WriteLine($"PASS: seed import ({expectedShopGoods} ShopGoods, {expectedBagInit} BagInit, {expectedCharacterDefaults} CharacterDefaults), pending player, first character creation, nickname uniqueness, migrations, persistence, integrity check, and backup.");
 }
 finally
 {
