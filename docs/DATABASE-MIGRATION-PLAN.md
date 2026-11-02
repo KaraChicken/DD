@@ -64,6 +64,12 @@ The second metadata pass also recorded per-table row counts (counts only, no val
 
 This confirms that at least two backups contain historical account/player-associated records. They are explicitly excluded from the portable seed database: the product is a fresh single-player rebuild and does not need those identities or saves. Only reviewed schema and allowlisted static game configuration/reference rows may be migrated. The three backups must remain private migration inputs and must not be included in player downloads.
 
+## Flash login trace status (partial; creation UI not yet located)
+
+The ActionScript login flow confirms that `SelectListManager.setup` marks an account as a newbie when the returned role list is empty. `LoginStateView` posts the encrypted account payload to `Login.ashx`. Its `ChooseRoleFrame` is an existing-role selector, and `RoleRenameFrame` is a rename flow that calls `NickNameCheck.ashx` and `RenameNick.ashx`; neither is the gender/nickname first-character creation UI described for the portable edition.
+
+Therefore the precise Flash creation screen and its request endpoint/packet handler are still unverified in the checked-in ActionScript. The server-side `PlayerBussiness.RegisterPlayer` / `SP_Users_RegisterNotValidate` contract is a strong candidate, but it must not be wired into the new SQLite path until the actual Flash request is traced. The original role creation UX remains unchanged as a requirement.
+
 ## Character-creation transaction dependencies found in the backup
 
 The selected procedure source reveals the concrete database contract behind the first-time player flow:
