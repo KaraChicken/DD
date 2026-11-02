@@ -140,6 +140,7 @@ VALUES ($userName, $passwordHash, $email, $createdUtc, 1);";
                 command.Parameters.AddWithValue("$createdUtc", UtcNow());
                 command.ExecuteNonQuery();
 
+                command.Parameters.Clear();
                 command.CommandText = "SELECT last_insert_rowid();";
                 var accountId = Convert.ToInt64(command.ExecuteScalar(), CultureInfo.InvariantCulture);
                 transaction.Commit();
