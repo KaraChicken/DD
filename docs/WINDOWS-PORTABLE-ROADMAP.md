@@ -37,6 +37,18 @@
 - Do not assume a SWF will run in a modern browser or Ruffle without testing.
 - Keep user data outside the application folder. Do not include database backups, secrets, or developer-specific paths in releases.
 
+## Database replacement and zero-install runtime
+
+- Product requirement: a player must not install SQL Server, SQL Server Express, LocalDB, or run a manual restore command. The portable launcher owns database startup and shutdown.
+- The current `Db/` folder contains three SQL Server backup files: `Db_Membership_20200702.BAK` (10,473,472 bytes), `Db_Tank41.BAK` (36,962,304 bytes), and `Db_Tank_20200702.BAK` (19,914,752 bytes). Their schemas, backup metadata, contents, and overlap have not yet been inspected; do not assume which backup is canonical or ship any of them in a release.
+- Preferred runtime direction to evaluate: embedded SQLite with the database file stored under `%LOCALAPPDATA%/DDTank/data`, using a bundled managed/native provider so no database server installation or service is required. This is a target architecture, not yet a verified drop-in replacement.
+- Do not attempt a blind `.BAK` to SQLite conversion. First inspect each backup's SQL Server version, database names, tables, indexes, constraints, views, triggers, stored procedures, and data volume in an isolated Windows CI job. Do not publish restored database contents or artifacts.
+- Inventory every legacy data-access call and SQL feature used by `SqlDataProvider`, `Bussiness`, and the server projects. Classify stored procedures, T-SQL-specific queries, identity behavior, transactions, locking, date/time and binary types, and multi-database joins. Build a compatibility/migration matrix before changing providers.
+- Create a repeatable migration pipeline that extracts only the required schema/reference data from the selected backup into a clean SQLite database. Keep generated player saves and account data separate from immutable seed data, and put all mutable files outside the application directory.
+- Introduce a persistence abstraction and migrate one bounded domain at a time, with integration tests against both the legacy SQL Server baseline and SQLite. Preserve game protocol and game rules; do not combine a database rewrite with unrelated gameplay changes.
+- The legacy SQL Server backup may be used as a one-time migration source in CI/development only. It is not a runtime dependency and is not included in the portable release.
+- Acceptance: on a clean Windows machine, launcher creates/initializes the local database on first run, starts without SQL Server installed, persists data across restarts, and can create/restore a user-level backup.
+
 ## Acceptance criteria
 - Extract and launch on a clean Windows machine without installing the .NET SDK or SQL Server manually.
 - Launcher reports startup errors with useful logs and only reports ready after local services pass health checks.
