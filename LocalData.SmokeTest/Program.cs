@@ -167,6 +167,29 @@ PRAGMA user_version = 2;";
     if (alreadyCreated.ResultCode != 3)
         throw new InvalidOperationException("The repository allowed a second character creation for the same account.");
 
+    var thirdAccountId = characterRepository.CreateAccount("third.player", "test-password-hash");
+    var femalePlayerId = characterRepository.CreatePendingPlayer(thirdAccountId, false, "127.0.0.1", "portable");
+    var femaleCharacter = characterRepository.CompleteCharacterCreation(thirdAccountId, "FemaleTest", 0, 30);
+    if (!femaleCharacter.Success || femaleCharacter.PlayerId != femalePlayerId)
+        throw new InvalidOperationException("The female first-character flow did not complete.");
+
+    using (var femaleConnection = database.OpenConnection())
+    using (var femaleCommand = femaleConnection.CreateCommand())
+    {
+        femaleCommand.CommandText = "SELECT Style FROM Players WHERE PlayerId = $playerId;";
+        femaleCommand.Parameters.AddWithValue("$playerId", femalePlayerId);
+        var femaleStyle = Convert.ToString(femaleCommand.ExecuteScalar()) ?? string.Empty;
+        if (!femaleStyle.Contains("3244|hair44", StringComparison.Ordinal) ||
+            !femaleStyle.Contains("6204|face3", StringComparison.Ordinal))
+            throw new InvalidOperationException("The female default appearance set was not applied.");
+
+        femaleCommand.Parameters.Clear();
+        femaleCommand.CommandText = "SELECT COUNT(*) FROM PlayerInventory WHERE PlayerId = $playerId;";
+        femaleCommand.Parameters.AddWithValue("$playerId", femalePlayerId);
+        if (Convert.ToInt32(femaleCommand.ExecuteScalar()) != 5)
+            throw new InvalidOperationException("The female character did not receive the five configured appearance items.");
+    }
+
     using (var pendingConnection = database.OpenConnection())
     using (var pendingCommand = pendingConnection.CreateCommand())
     {
@@ -217,15 +240,15 @@ CREATE TABLE ""SmokeTest"" (
             throw new InvalidOperationException("The standalone backup did not retain character defaults.");
         
         backupCommand.CommandText = "SELECT COUNT(*) FROM Players;";
-        if (Convert.ToInt32(backupCommand.ExecuteScalar()) != 2)
+        if (Convert.ToInt32(backupCommand.ExecuteScalar()) != 3)
             throw new InvalidOperationException("The standalone backup did not retain player progress.");
 
         backupCommand.CommandText = "SELECT COUNT(*) FROM PlayerInventory;";
-        if (Convert.ToInt32(backupCommand.ExecuteScalar()) != 5)
-            throw new InvalidOperationException("The standalone backup did not retain the player's starting inventory.");
+        if (Convert.ToInt32(backupCommand.ExecuteScalar()) != 10)
+            throw new InvalidOperationException("The standalone backup did not retain both players' starting inventories.");
     }
 
-    Console.WriteLine($"PASS: seed import ({expectedShopGoods} ShopGoods, {expectedBagInit} BagInit, {expectedCharacterDefaults} CharacterDefaults), pending player, first character creation, nickname uniqueness, migrations, persistence, integrity check, and backup.");
+    Console.WriteLine($"PASS: seed import ({expectedShopGoods} ShopGoods, {expectedBagInit} BagInit, {expectedCharacterDefaults} CharacterDefaults), pending player, male/female character creation, nickname uniqueness, migrations, persistence, integrity check, and backup.");
 }
 finally
 {
