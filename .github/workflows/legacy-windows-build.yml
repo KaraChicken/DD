@@ -1,0 +1,49 @@
+name: Legacy Windows build
+
+on:
+  push:
+    branches:
+      - main
+      - refactor/windows-portable-bootstrap
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-legacy:
+    name: Build legacy .NET Framework solution
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Setup NuGet
+        uses: NuGet/setup-nuget@v2
+
+      - name: Restore NuGet packages
+        shell: pwsh
+        run: |
+          nuget restore "Source Server/DDTank 4.1.sln" -NonInteractive
+
+      - name: Build Release
+        shell: pwsh
+        run: |
+          msbuild "Source Server/DDTank 4.1.sln" /m /p:Configuration=Release /p:Platform="Any CPU" /verbosity:minimal
+
+      - name: Upload legacy build outputs
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ddtank-legacy-build
+          path: |
+            Source Server/**/bin/Release/**
+            Source Server/Road.Service/bin/Release/**
+          if-no-files-found: warn
+          retention-days: 14
