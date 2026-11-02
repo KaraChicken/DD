@@ -47,3 +47,32 @@ jobs:
             Source Server/Road.Service/bin/Release/**
           if-no-files-found: warn
           retention-days: 14
+
+  build-webmodern:
+    name: Build replacement ASP.NET Core web host
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore WebModern/DDTank.Web.csproj
+
+      - name: Build Release
+        run: dotnet build WebModern/DDTank.Web.csproj --configuration Release --no-restore
+
+      - name: Publish self-contained win-x64
+        run: dotnet publish WebModern/DDTank.Web.csproj --configuration Release --runtime win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true --output artifacts/WebModern
+
+      - name: Upload portable web host
+        uses: actions/upload-artifact@v4
+        with:
+          name: ddtank-webmodern-win-x64
+          path: artifacts/WebModern/**
+          if-no-files-found: error
+          retention-days: 14
