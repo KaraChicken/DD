@@ -138,6 +138,19 @@ The `LocalData.SmokeTest` project exercises initialization, repeat initializatio
 
 Important boundary: this library is a tested foundation, **not yet wired into the legacy Game.Server/Bussiness code**. The legacy services still use SqlClient and SQL Server stored procedures. The next integration work depends on the account/character procedure definitions and a reviewed reference-data allowlist; do not treat the current server as SQL-free yet.
 
+## SQLite first-character repository implementation
+
+`LocalData/CharacterCreationRepository.cs` now implements the first bounded migration slice:
+- `CreateAccount` stores a password hash supplied by the authentication layer (never plaintext).
+- `CreatePendingPlayer` mirrors `SP_Users_Active`: creates the blank-nickname player and its fight, VIP, Texp, and daily-log rows.
+- `CompleteCharacterCreation` mirrors `SP_Users_RegisterNotValidate`: uses the sex-specific `CharacterDefaults`, validates all five configured appearance items against `ShopGoods`, inserts the five appearance inventory items, applies weapon stats, handles any `BagInit` rows with the legacy bag placement/stacking rules, and updates `IsFirst`/nickname/style in one SQLite transaction.
+- Return codes preserve the legacy contract: 0 success, 2 nickname already used, 3 no pending character / already completed.
+- The repository creates fresh local account/player tables; it does not import old account or player rows.
+
+The SQLite connection registers a custom `SQL_Latin1_General_CP1_CI_AS` collation using .NET `en-US` comparison with case ignored and accents retained. This is an intentional compatibility approximation, not a claim of byte-for-byte equivalence with SQL Server's collation for every Unicode character. It needs additional tests for the nickname character sets used by the client.
+
+The repository does not yet implement the legacy handler's locale-dependent `Encoding.Default.GetByteCount(nickname) <= 14` rule or its file-based illegal-character list. Those checks belong in the replacement `VisualizeRegister.ashx`-compatible HTTP endpoint and must be ported before switching the Flash client to it. The repository is not yet wired into `WebModern` or the legacy Game.Server; old runtime services still use SqlClient.
+
 ## Release and data safety
 
 - Never include `.BAK`, `.mdf`, `.ldf`, `.ndf`, credentials, or restored user data in release artifacts.
