@@ -46,6 +46,8 @@ The isolated SQL Server 2022 restore workflow completed successfully for all thr
 | `Db_Tank_20200702.BAK` | `Db_Tank` | 80 | 0 | 162 | 820 |
 
 Additional findings:
+
+The restored databases also have different SQL Server compatibility/collation settings: membership is compatibility level 100 with `Chinese_PRC_CI_AS`, game state is level 100 with `SQL_Latin1_General_CP1_CI_AS`, and reference data is level 130 with `Latin1_General_CI_AS`. SQLite defaults do not reproduce these comparison rules automatically. Nickname/account uniqueness and text ordering must be explicitly defined and tested (including case/accent behavior) during the port.
 - The three backups are not duplicates. They have different schemas and logical database names.
 - The membership backup contains account/website-oriented tables such as `Mem_Users`, `Mem_UserInfo`, password reset and webshop tables. Do not bundle its historical user rows into a fresh single-player release.
 - `Db_Tank41` contains live player/game state tables such as `Sys_User_Info`, `Sys_Users_Detail`, `Sys_Users_Goods`, `Sys_Users_Pet`, `Sys_Users_Friends`, `QuestData`, `Consortia`, and `User_Messages`.
