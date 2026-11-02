@@ -5,6 +5,7 @@ namespace DDTank.LocalData
     /// <summary>Result codes compatible with the legacy first-character registration procedure.</summary>
     public sealed class CharacterCreationResult
     {
+        /// <summary>Creates a result using the legacy procedure return code.</summary>
         public CharacterCreationResult(int resultCode, long playerId)
         {
             ResultCode = resultCode;
@@ -17,6 +18,7 @@ namespace DDTank.LocalData
         /// <summary>The local player identifier, or zero when no pending player exists.</summary>
         public long PlayerId { get; }
 
+        /// <summary>Gets whether the character was created.</summary>
         public bool Success => ResultCode == 0;
     }
 }
