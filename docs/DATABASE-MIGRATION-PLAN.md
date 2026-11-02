@@ -153,6 +153,22 @@ The SQLite connection registers a custom `SQL_Latin1_General_CP1_CI_AS` collatio
 
 `WebModern` initializes SQLite under the current user's LocalAppData directory, imports the bundled reference seed, and exposes database readiness checks. Account registration stores a password hash and creates only an account row. Account login verifies the password, creates a pending player if needed, and issues a five-minute random game ticket; SQLite stores only its hash. The Flash-compatible `/Request/VisualizeRegister.ashx` endpoint accepts the existing character-creation fields and returns the legacy XML result format. It applies the existing illegal-character list and 14-byte nickname limit using the Windows ANSI code page, then verifies the game ticket before creating the character. The old Game.Server does not yet validate these SQLite tickets, and the SWF login handshake still needs to be adapted to obtain the new ticket, so the full game is not yet SQL-free.
 
+## Verified Windows SQLite/web integration
+
+[Main Windows build run 41427911460](https://github.com/KaraChicken/DD/actions/runs/41427911460) passed all jobs. It built the legacy solution, generated the filtered seed in an ephemeral CI SQL Server container, ran the actual-seed ticket/character smoke test on Windows, and started the published self-contained web host.
+
+The published host smoke test verified:
+- database readiness from the bundled SQLite seed;
+- account registration creates an account only;
+- duplicate account names are rejected case-insensitively;
+- login verifies the password and issues a five-minute ticket;
+- the Flash-compatible `/Request/VisualizeRegister.ashx` endpoint accepts the ticket and creates the first character;
+- a subsequent login recognizes the character and rotates the ticket.
+
+Artifacts (14-day retention): [win-x64 SQLite-backed web host](https://github.com/KaraChicken/DD/actions/runs/41427911460/artifacts/13133261333), [character-reference seed](https://github.com/KaraChicken/DD/actions/runs/41427911460/artifacts/13131764889), and [legacy build outputs](https://github.com/KaraChicken/DD/actions/runs/41427911460/artifacts/13133400355).
+
+This proves the local account/first-character web path can run without SQL Server. It does **not** prove the complete game can run without SQL Server: the legacy Game.Server/Center/Fighting services still use SqlClient, and the SWF login handshake has not yet been changed to obtain and use the new ticket.
+
 ## Release and data safety
 
 - Never include `.BAK`, `.mdf`, `.ldf`, `.ndf`, credentials, or restored user data in release artifacts.
