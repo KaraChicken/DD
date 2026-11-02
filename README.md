@@ -6,6 +6,10 @@
 
 O projeto está em fase de desenvolvimento e não está 100% concluído.
 
+## Direção da edição Windows portátil
+
+A direção atual do produto é uma edição Windows portátil com launcher nativo, cliente híbrido (launcher + SWF) e migração gradual do servidor legado em C#. O plano de execução está em [docs/WINDOWS-PORTABLE-ROADMAP.md](docs/WINDOWS-PORTABLE-ROADMAP.md). A arquitetura Node.js descrita abaixo é uma proposta anterior e não representa a decisão atual para a edição portátil.
+
 ## Estrutura e direção da reconstrução
 
 A reconstrução moderna do projeto será desenvolvida principalmente dentro do diretório **`app/`**.
