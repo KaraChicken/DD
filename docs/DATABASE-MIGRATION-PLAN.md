@@ -64,6 +64,18 @@ The second metadata pass also recorded per-table row counts (counts only, no val
 
 This confirms that at least two backups contain historical account/player-associated records. They are explicitly excluded from the portable seed database: the product is a fresh single-player rebuild and does not need those identities or saves. Only reviewed schema and allowlisted static game configuration/reference rows may be migrated. The three backups must remain private migration inputs and must not be included in player downloads.
 
+## Character-creation transaction dependencies found in the backup
+
+The selected procedure source reveals the concrete database contract behind the first-time player flow:
+
+- `Mem_Users_CreateUser` creates the website/account identity in `Mem_Users` and `Mem_UserInfo`. It depends on `Mem_Application`, `Mem_Application_User`, and `Mem_Code_Sto` for application lookup, duplicate detection, and ID generation.
+- `SP_Users_Active` creates the initial game-side player row in `Sys_Users_Detail`, then creates related rows in `Sys_Users_Fight`, `Sys_VIP_Info`, `Sys_Users_Texp`, and `DailyLogList`, in one SQL Server transaction. The nickname is initially empty.
+- `SP_Users_RegisterNotValidate` is the actual character-profile operation in this backup: it checks nickname uniqueness and first-creation state; reads gender-specific appearance item data from `Db_Tank.dbo.Shop_Goods`; reads starting inventory from `Db_Tank41.dbo.Bag_Init`; creates inventory rows in `Sys_Users_Goods`; then updates `Sys_Users_Detail` (nickname, sex, style, colors, first-login state) and `Sys_Users_Fight` (combat attributes), transactionally.
+- This is a cross-database SQL Server operation involving both the game database and the reference database. A SQLite implementation must place the required reference tables in the local database (or attach a second SQLite file deliberately) and preserve the entire operation as one transaction. It must not split character creation into partially committed writes.
+- The procedure's nickname check is a database-level uniqueness check; the SQLite port must enforce uniqueness under the intended collation, not only in UI validation.
+
+This is a much narrower and more actionable first migration slice than attempting to translate all 300 game stored procedures at once. The next implementation target is the account/first-character path, after confirming the exact Flash packet handler and the live service call sequence.
+
 ## CI inspection artifact
 
 The successful first run is [workflow run 41420505591](https://github.com/KaraChicken/DD/actions/runs/41420505591). Its metadata-only artifact is [ddtank-database-metadata-inventory](https://github.com/KaraChicken/DD/actions/runs/41420505591) (seven-day retention). Re-run the workflow to regenerate it; never commit restored database files or user data.
