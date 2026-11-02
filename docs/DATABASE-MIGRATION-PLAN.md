@@ -13,6 +13,16 @@ The Windows Portable edition must start without the player installing SQL Server
 - `Center.Service/App.config` references `Db_Tank41`, `Db_Tank`, and `Db_Count`. The exact runtime necessity of each database still needs tracing before any service or database is removed.
 - Therefore, replacing `SqlClient` with `Microsoft.Data.Sqlite` or changing connection strings alone cannot work. Stored procedures and T-SQL behavior must be migrated deliberately.
 
+## Account and character persistence call-path clues
+
+Source inspection found multiple legacy paths that must not be conflated:
+- `MemberShipBussiness.CreateUsername` calls `Mem_Users_CreateUser` using the separate `membershipDb` setting; `CheckUsername` calls `Check_User`.
+- `PlayerBussiness.ActivePlayer` calls `SP_Users_Active` and passes username, password, and sex while initializing a blank player record.
+- `PlayerBussiness.RegisterPlayer` calls `SP_Users_RegisterNotValidate` with username, password, nickname, sex, appearance item IDs, and colors.
+- `PlayerBussiness.RegisterUser` also calls `SP_Account_Register` with username, password, nickname, sex, and starting currencies.
+
+These are source-level call sites, not proof of which path the current Flash SWF invokes. The Flash packet/handler trace must identify the active path before implementing SQLite equivalents. The new website must not take over the in-game nickname/gender UI just because an older SQL procedure accepts those fields.
+
 ## Backup inspection
 
 The repository currently contains three MSSQL backup files in `Db/`. Their canonical role and schema overlap are not yet established.
