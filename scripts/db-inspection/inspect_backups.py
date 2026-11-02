@@ -180,7 +180,7 @@ def inspect_backup(backup: pathlib.Path, index: int) -> dict:
     procedure_names = []
     if "Membership" in backup.name:
         procedure_names = [
-            "Mem_Users_CreateUser", "Mem_UserInfo_Addmin", "Mem_UserInfo_SearchName", "Check_User",
+            "Mem_Users_CreateUser", "Mem_Code_Sto", "Mem_UserInfo_Addmin", "Mem_UserInfo_SearchName", "Check_User",
             "st_Login", "st_GetUserInfo", "Webshop_Register"
         ]
     elif "Tank41" in backup.name:
