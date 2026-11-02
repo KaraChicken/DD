@@ -151,11 +151,12 @@ PRAGMA user_version = 2;";
         characterCommand.Parameters.Clear();
         characterCommand.CommandText = "SELECT COUNT(*) FROM PlayerInventory WHERE PlayerId = $playerId;";
         characterCommand.Parameters.AddWithValue("$playerId", firstPlayerId);
-        characterCommand.Parameters.AddWithValue("$playerId", firstPlayerId);
         if (Convert.ToInt32(characterCommand.ExecuteScalar()) != 5)
             throw new InvalidOperationException("The first character did not receive the five configured appearance items.");
 
+        characterCommand.Parameters.Clear();
         characterCommand.CommandText = "SELECT Attack, Defence, Agility, Luck FROM PlayerFightStats WHERE PlayerId = $playerId;";
+        characterCommand.Parameters.AddWithValue("$playerId", firstPlayerId);
         using (var stats = characterCommand.ExecuteReader())
         {
             if (!stats.Read() || stats.GetInt32(0) != 60 || stats.GetInt32(1) != 30 ||
