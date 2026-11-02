@@ -25,8 +25,6 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Start ephemeral SQL Server 2022
-        env:
-          MSSQL_SA_PASSWORD: ${{ secrets.GITHUB_TOKEN }}-Aa9!xZ7#pQ2
         run: |
           # This throwaway password is generated per run and never persisted.
           PASSWORD="$(python3 -c 'import secrets; print("Aa9!" + secrets.token_urlsafe(24) + "Z7#")')"
@@ -49,8 +47,6 @@ jobs:
           exit 1
 
       - name: Restore and inspect backup metadata
-        env:
-          MSSQL_SA_PASSWORD: ${{ env.MSSQL_SA_PASSWORD }}
         run: |
           python3 scripts/db-inspection/inspect_backups.py
 
