@@ -1,3 +1,4 @@
+using System.Net;
 using DDTank.Web.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -9,9 +10,8 @@ builder.Services.AddOptions<LocalWebOptions>()
     .Bind(builder.Configuration.GetSection(LocalWebOptions.SectionName))
     .Validate(o => Uri.TryCreate(o.BaseUrl, UriKind.Absolute, out var uri)
         && uri.Scheme == Uri.UriSchemeHttp
-        && IPAddress.IsLoopback(uri.HostNameType == UriHostNameType.IPv4
-            ? IPAddress.Parse(uri.Host)
-            : IPAddress.Loopback),
+        && (string.Equals(uri.Host, "localhost", StringComparison.OrdinalIgnoreCase)
+            || (IPAddress.TryParse(uri.Host, out var address) && IPAddress.IsLoopback(address))),
         "The local web host must bind to an HTTP loopback address.")
     .ValidateOnStart();
 
