@@ -50,6 +50,15 @@ jobs:
         run: |
           python3 scripts/db-inspection/inspect_backups.py
 
+
+      - name: Setup .NET 10 SDK for SQLite seed validation
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Import and validate the actual SQLite reference seed
+        run: dotnet run --project LocalData.SmokeTest/LocalData.SmokeTest.csproj --configuration Release -- artifacts/database-inspection/character-reference-seed.sqlite3
+
       - name: Upload metadata-only inventory
         if: success()
         uses: actions/upload-artifact@v4
