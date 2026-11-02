@@ -1,5 +1,4 @@
 using System.Net;
-using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using DDTank.LocalData;
@@ -26,6 +25,7 @@ builder.Services.AddSingleton(localDatabase.Database);
 builder.Services.AddSingleton(localDatabase.Characters);
 builder.Services.AddSingleton<IPasswordHasher<string>, PasswordHasher<string>>();
 builder.Services.AddSingleton<NicknamePolicy>();
+builder.Services.AddSingleton<GameLoginService>();
 builder.Services.AddProblemDetails();
 builder.Services.AddRazorPages();
 builder.Services.AddHealthChecks()
@@ -104,46 +104,25 @@ app.MapPost("/api/v1/accounts/register", (
 
 app.MapPost("/api/v1/accounts/login", (
     AccountLoginRequest request,
-    CharacterCreationRepository characters,
-    IPasswordHasher<string> passwordHasher) =>
+    GameLoginService loginService) =>
 {
     var userName = request.UserName?.Trim() ?? string.Empty;
     var password = request.Password ?? string.Empty;
-    var account = characters.FindAccountByUserName(userName);
-    if (account == null || !account.IsActive || string.IsNullOrEmpty(password))
+    var result = loginService.Login(userName, password);
+    if (result == null)
         return Results.Unauthorized();
-
-    var verification = passwordHasher.VerifyHashedPassword(account.UserName, account.PasswordHash, password);
-    if (verification == PasswordVerificationResult.Failed)
-        return Results.Unauthorized();
-
-    var ticketBytes = RandomNumberGenerator.GetBytes(32);
-    var gameTicket = Convert.ToBase64String(ticketBytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
-    var player = characters.GetPlayerLoginState(account.AccountId);
-    if (player == null)
-    {
-        characters.CreatePendingPlayer(account.AccountId, gameTicket, false);
-        player = characters.GetPlayerLoginState(account.AccountId);
-    }
-    else
-    {
-        characters.UpdateGameTicket(account.AccountId, gameTicket);
-        player = characters.GetPlayerLoginState(account.AccountId);
-    }
-
-    if (player == null)
-        return Results.Problem("The local player record could not be initialized.");
 
     return Results.Ok(new
     {
-        accountId = account.AccountId,
-        playerId = player.PlayerId,
-        gameTicket,
-        expiresInSeconds = 300,
-        requiresCharacterCreation = player.RequiresCharacterCreation,
-        nickname = player.Nickname
+        accountId = result.AccountId,
+        playerId = result.Player.PlayerId,
+        gameTicket = result.GameTicket,
+        expiresInSeconds = result.ExpiresInSeconds,
+        requiresCharacterCreation = result.Player.RequiresCharacterCreation,
+        nickname = result.Player.Nickname
     });
 });
+
 app.MapRazorPages();
 app.MapMethods("/VisualizeRegister.ashx", new[] { "GET", "POST" }, HandleVisualizeRegisterAsync);
 app.MapMethods("/Request/VisualizeRegister.ashx", new[] { "GET", "POST" }, HandleVisualizeRegisterAsync);
