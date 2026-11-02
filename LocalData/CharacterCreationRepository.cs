@@ -449,7 +449,14 @@ WHERE AccountId = $accountId;";
             using (var connection = _database.OpenConnection())
             using (var command = connection.CreateCommand())
             {
-                command.CommandText = "SELECT PlayerId, NickName, Sex, IsFirst FROM Players WHERE AccountId = $accountId;";
+                command.CommandText = @"
+SELECT p.PlayerId, p.UserName, p.NickName, p.Sex, p.IsFirst, p.IsExist,
+       p.GP, p.Grade, p.Gold, p.Money, p.Hide, p.Style, p.Colors, p.Skin,
+       COALESCE(f.Attack, 0), COALESCE(f.Defence, 0), COALESCE(f.Agility, 0), COALESCE(f.Luck, 0),
+       p.CreatedUtc
+FROM Players p
+LEFT JOIN PlayerFightStats f ON f.PlayerId = p.PlayerId
+WHERE p.AccountId = $accountId;";
                 command.Parameters.AddWithValue("$accountId", accountId);
                 using (var reader = command.ExecuteReader())
                 {
@@ -458,8 +465,23 @@ WHERE AccountId = $accountId;";
                     return new PlayerLoginState(
                         reader.GetInt64(0),
                         reader.GetString(1),
-                        reader.GetInt32(2),
-                        reader.GetInt32(3));
+                        reader.GetString(2),
+                        reader.GetInt32(3),
+                        reader.GetInt32(4),
+                        reader.GetInt32(5),
+                        reader.GetInt32(6),
+                        reader.GetInt32(7),
+                        reader.GetInt32(8),
+                        reader.GetInt32(9),
+                        reader.GetInt32(10),
+                        reader.GetString(11),
+                        reader.GetString(12),
+                        reader.GetString(13),
+                        reader.GetInt32(14),
+                        reader.GetInt32(15),
+                        reader.GetInt32(16),
+                        reader.GetInt32(17),
+                        reader.GetString(18));
                 }
             }
         }
