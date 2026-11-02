@@ -2,7 +2,6 @@ using System;
 using System.Globalization;
 using System.IO;
 using DDTank.LocalData;
-using Microsoft.Data.Sqlite;
 
 namespace DDTank.Web.Infrastructure
 {
