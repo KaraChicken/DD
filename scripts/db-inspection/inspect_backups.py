@@ -116,6 +116,30 @@ def inspect_backup(backup: pathlib.Path, index: int) -> dict:
     UNION ALL SELECT 'procedures', COUNT(*) FROM [{db_name}].sys.procedures WHERE is_ms_shipped = 0
     UNION ALL SELECT 'triggers', COUNT(*) FROM [{db_name}].sys.triggers WHERE is_ms_shipped = 0;
     """
+
+    row_counts_query = f"""
+    SET NOCOUNT ON;
+    SELECT s.name, t.name, SUM(p.rows)
+    FROM [{db_name}].sys.tables AS t
+    JOIN [{db_name}].sys.schemas AS s ON s.schema_id = t.schema_id
+    JOIN [{db_name}].sys.partitions AS p ON p.object_id = t.object_id
+    WHERE p.index_id IN (0, 1)
+    GROUP BY s.name, t.name
+    ORDER BY s.name, t.name;
+    """
+    row_count_lines = [
+        line.strip() for line in sql(row_counts_query).splitlines()
+        if line.strip() and "|" in line and not line.lstrip().startswith("(")
+    ]
+    database_query = f"""
+    SET NOCOUNT ON;
+    SELECT d.name, d.compatibility_level, d.collation_name, d.recovery_model_desc
+    FROM sys.databases AS d WHERE d.name = {quote_sql(db_name)};
+    """
+    database_lines = [
+        line.strip() for line in sql(database_query).splitlines()
+        if line.strip() and "|" in line and not line.lstrip().startswith("(")
+    ]
     count_lines = [
         line.strip() for line in sql(counts_query).splitlines()
         if line.strip() and "|" in line and not line.lstrip().startswith("(")
@@ -127,7 +151,9 @@ def inspect_backup(backup: pathlib.Path, index: int) -> dict:
         "logical_files": [
             {"logical_name": item[0], "type": item[2]} for item in logical_files
         ],
+        "database_metadata": database_lines,
         "object_counts": count_lines,
+        "table_row_counts": row_count_lines,
         "objects": object_lines,
         "columns": column_lines,
     }
