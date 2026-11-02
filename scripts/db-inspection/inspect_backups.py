@@ -37,7 +37,7 @@ def sql(query: str) -> str:
     return docker(
         "exec", "-i", CONTAINER, SQLCMD,
         "-S", "localhost", "-U", "sa", "-P", PASSWORD, "-C",
-        "-b", "-W", "-h", "-1", "-s", "|", "-Q", query,
+        "-b", "-W", "-h", "-1", "-s", "|", "-y", "0", "-w", "65535", "-Q", query,
     )
 
 
@@ -52,6 +52,24 @@ def rows(output: str) -> list[list[str]]:
         if len(parts) >= 3 and parts[2] in {"D", "L"} and parts[0]:
             parsed.append(parts)
     return parsed
+
+
+def selected_procedure_definitions(db_name: str, names: list[str]) -> list[dict]:
+    quoted_names = ", ".join(quote_sql(name) for name in names)
+    query = f"""
+    SET NOCOUNT ON;
+    SELECT p.name, m.definition
+    FROM [{db_name}].sys.procedures AS p
+    LEFT JOIN [{db_name}].sys.sql_modules AS m ON m.object_id = p.object_id
+    WHERE p.name IN ({quoted_names})
+    ORDER BY p.name
+    FOR JSON PATH;
+    """
+    output = sql(query)
+    payload = "".join(line.strip() for line in output.splitlines() if line.strip())
+    if not payload:
+        return []
+    return json.loads(payload)
 
 
 def inspect_backup(backup: pathlib.Path, index: int) -> dict:
@@ -144,6 +162,22 @@ def inspect_backup(backup: pathlib.Path, index: int) -> dict:
         line.strip() for line in sql(counts_query).splitlines()
         if line.strip() and "|" in line and not line.lstrip().startswith("(")
     ]
+    procedure_names = []
+    if "Membership" in backup.name:
+        procedure_names = [
+            "Mem_Users_CreateUser", "Mem_UserInfo_Addmin", "Mem_UserInfo_SearchName",
+            "st_Login", "st_GetUserInfo", "Webshop_Register"
+        ]
+    elif "Tank41" in backup.name:
+        procedure_names = [
+            "SP_Users_Active", "SP_CheckAccount", "SP_Account_Register",
+            "SP_Users_RegisterNotValidate", "SP_Users_RegisterNotValidate2",
+            "SP_Users_Login", "SP_Users_LoginWeb", "SP_GetPlayerByUserName",
+            "SP_Users_SingleByUserName", "SP_Users_SingleByUserID",
+            "SP_Users_CheckByNickName", "SP_Users_Update", "SP_User_Info_Add"
+        ]
+    procedure_definitions = selected_procedure_definitions(db_name, procedure_names)
+
     return {
         "backup_file": backup.name,
         "backup_size_bytes": backup.stat().st_size,
@@ -156,6 +190,7 @@ def inspect_backup(backup: pathlib.Path, index: int) -> dict:
         "table_row_counts": row_count_lines,
         "objects": object_lines,
         "columns": column_lines,
+        "selected_procedure_definitions": procedure_definitions,
     }
 
 
