@@ -234,6 +234,15 @@ jobs:
               throw "Account login did not issue a short-lived ticket for first-character creation."
             }
 
+            $wrongPasswordBody = @{
+              userName = "Portable.Smoke"
+              password = "DefinitelyWrongPassword-2026"
+            } | ConvertTo-Json
+            $wrongPassword = Invoke-WebRequest -Uri "http://127.0.0.1:5080/api/v1/accounts/login" -Method Post -ContentType "application/json" -Body $wrongPasswordBody -TimeoutSec 5 -SkipHttpErrorCheck
+            if ($wrongPassword.StatusCode -ne 401) {
+              throw "Login accepted an incorrect password; expected HTTP 401."
+            }
+
             $roleBody = "Name=Portable.Smoke&Pass=$([uri]::EscapeDataString($login.gameTicket))&NickName=ZyxQ7&Sex=true"
             $roleResponse = Invoke-WebRequest -Uri "http://127.0.0.1:5080/Request/VisualizeRegister.ashx" -Method Post -ContentType "application/x-www-form-urlencoded" -Body $roleBody -TimeoutSec 5
             [xml]$roleXml = $roleResponse.Content
@@ -244,6 +253,31 @@ jobs:
             $loginAgain = Invoke-RestMethod -Uri "http://127.0.0.1:5080/api/v1/accounts/login" -Method Post -ContentType "application/json" -Body $loginBody -TimeoutSec 5
             if ($loginAgain.requiresCharacterCreation -or $loginAgain.gameTicket -eq $login.gameTicket) {
               throw "Existing-player login did not rotate the game ticket or recognize the created character."
+            }
+
+            Stop-Process -Id $process.Id -Force
+            $process.WaitForExit()
+            $process = Start-Process -FilePath $exe -WorkingDirectory (Join-Path $PWD "artifacts\WebModern") -PassThru -WindowStyle Hidden
+
+            $restartedReady = $false
+            for ($attempt = 0; $attempt -lt 30; $attempt++) {
+              try {
+                $restartedInfo = Invoke-RestMethod -Uri "http://127.0.0.1:5080/api/v1/server/info" -TimeoutSec 2
+                if ($restartedInfo.databaseReady -eq $true) {
+                  $restartedReady = $true
+                  break
+                }
+              } catch {
+              }
+              Start-Sleep -Seconds 1
+            }
+            if (-not $restartedReady) {
+              throw "SQLite database did not reopen cleanly after restarting the web host."
+            }
+
+            $loginAfterRestart = Invoke-RestMethod -Uri "http://127.0.0.1:5080/api/v1/accounts/login" -Method Post -ContentType "application/json" -Body $loginBody -TimeoutSec 5
+            if ($loginAfterRestart.requiresCharacterCreation -or -not $loginAfterRestart.gameTicket) {
+              throw "The registered account or created character did not persist across host restart."
             }
           }
           finally {
