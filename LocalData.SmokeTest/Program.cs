@@ -135,8 +135,17 @@ PRAGMA user_version = 2;";
     characterRepository.InitializeSchema();
 
     var firstAccountId = characterRepository.CreateAccount("first.player", "test-password-hash");
-    var firstPlayerId = characterRepository.CreatePendingPlayer(firstAccountId, true, "127.0.0.1", "portable");
-    var firstCharacter = characterRepository.CompleteCharacterCreation(firstAccountId, "TestPlayer", 1, 30);
+    var firstTicket = "first-player-game-ticket";
+    var firstPlayerId = characterRepository.CreatePendingPlayer(firstAccountId, firstTicket, true, "127.0.0.1", "portable");
+    if (!characterRepository.VerifyGameTicket(firstAccountId, firstTicket) ||
+        characterRepository.VerifyGameTicket(firstAccountId, "not-the-ticket"))
+        throw new InvalidOperationException("Short-lived game ticket validation failed.");
+
+    var invalidTicket = characterRepository.CompleteCharacterCreation(firstAccountId, "wrong-ticket", "WrongTicket", 1, 3);
+    if (invalidTicket.ResultCode != 3)
+        throw new InvalidOperationException("Character creation accepted an invalid game ticket.");
+
+    var firstCharacter = characterRepository.CompleteCharacterCreation(firstAccountId, firstTicket, "TestPlayer", 1, 3);
     if (!firstCharacter.Success || firstCharacter.PlayerId != firstPlayerId)
         throw new InvalidOperationException("The first character was not created successfully.");
 
@@ -166,18 +175,24 @@ PRAGMA user_version = 2;";
     }
 
     var secondAccountId = characterRepository.CreateAccount("second.player", "test-password-hash");
-    var secondPlayerId = characterRepository.CreatePendingPlayer(secondAccountId, false, "127.0.0.1", "portable");
-    var duplicateNickname = characterRepository.CompleteCharacterCreation(secondAccountId, "testplayer", 0, 30);
+    var secondTicket = "second-player-game-ticket";
+    var secondPlayerId = characterRepository.CreatePendingPlayer(secondAccountId, secondTicket, false, "127.0.0.1", "portable");
+    characterRepository.UpdateGameTicket(secondAccountId, "rotated-second-player-ticket");
+    if (characterRepository.VerifyGameTicket(secondAccountId, secondTicket) ||
+        !characterRepository.VerifyGameTicket(secondAccountId, "rotated-second-player-ticket"))
+        throw new InvalidOperationException("Game ticket rotation did not invalidate the previous ticket.");
+    var duplicateNickname = characterRepository.CompleteCharacterCreation(secondAccountId, "rotated-second-player-ticket", "testplayer", 0, 3);
     if (duplicateNickname.ResultCode != 2)
         throw new InvalidOperationException("Nickname uniqueness did not match the case-insensitive SQL Server collation.");
 
-    var alreadyCreated = characterRepository.CompleteCharacterCreation(firstAccountId, "AnotherName", 1, 30);
+    var alreadyCreated = characterRepository.CompleteCharacterCreation(firstAccountId, firstTicket, "AnotherName", 1, 3);
     if (alreadyCreated.ResultCode != 3)
         throw new InvalidOperationException("The repository allowed a second character creation for the same account.");
 
     var thirdAccountId = characterRepository.CreateAccount("third.player", "test-password-hash");
-    var femalePlayerId = characterRepository.CreatePendingPlayer(thirdAccountId, false, "127.0.0.1", "portable");
-    var femaleCharacter = characterRepository.CompleteCharacterCreation(thirdAccountId, "FemaleTest", 0, 30);
+    var femaleTicket = "female-player-game-ticket";
+    var femalePlayerId = characterRepository.CreatePendingPlayer(thirdAccountId, femaleTicket, false, "127.0.0.1", "portable");
+    var femaleCharacter = characterRepository.CompleteCharacterCreation(thirdAccountId, femaleTicket, "FemaleTest", 0, 3);
     if (!femaleCharacter.Success || femaleCharacter.PlayerId != femalePlayerId)
         throw new InvalidOperationException("The female first-character flow did not complete.");
 
