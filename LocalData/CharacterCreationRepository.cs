@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
 using Microsoft.Data.Sqlite;
 
 namespace DDTank.LocalData
@@ -114,6 +116,8 @@ CREATE TABLE IF NOT EXISTS PlayerInventory (
     UNIQUE(PlayerId, BagType, Place)
 );");
             _database.ApplyMigration(101, "ALTER TABLE Players ADD COLUMN IsExist INTEGER NOT NULL DEFAULT 1;");
+            _database.ApplyMigration(102, @"ALTER TABLE Players ADD COLUMN SessionTicketHash TEXT NOT NULL DEFAULT '';
+ALTER TABLE Players ADD COLUMN SessionTicketExpiresUtc TEXT NULL;");
         }
 
         /// <summary>
@@ -181,8 +185,13 @@ LIMIT 1;";
         /// Creates the blank game-side player row on first game login, mirroring SP_Users_Active.
         /// The nickname remains empty until the Flash VisualizeRegister flow completes.
         /// </summary>
-        public long CreatePendingPlayer(long accountId, bool sex, string? activeIp = null, string? site = null)
+        public long CreatePendingPlayer(long accountId, string gameTicket, bool sex, string? activeIp = null, string? site = null)
         {
+            if (string.IsNullOrWhiteSpace(gameTicket))
+                throw new ArgumentException("A short-lived game ticket is required.", nameof(gameTicket));
+
+            var ticketHash = HashGameTicket(gameTicket);
+            var ticketExpiresUtc = DateTime.UtcNow.AddMinutes(5).ToString("O", CultureInfo.InvariantCulture);
             using (var connection = _database.OpenConnection())
             using (var transaction = connection.BeginTransaction())
             {
@@ -211,11 +220,13 @@ LIMIT 1;";
                     insert.CommandText = @"
 INSERT INTO Players(
     AccountId, UserName, NickName, Sex, GP, Grade, Gold, Money, State, IsFirst,
-    Hide, Style, Colors, ActiveIP, Skin, Site, PvePermission, CreatedUtc, UpdatedUtc
+    Hide, Style, Colors, ActiveIP, Skin, Site, PvePermission, CreatedUtc, UpdatedUtc,
+    SessionTicketHash, SessionTicketExpiresUtc
 )
 VALUES (
     $accountId, $userName, '', $sex, 1, 1, 0, 0, 0, 0,
-    1111111111, ',,,,,,', ',,,,,,', $activeIp, '', $site, $pvePermission, $createdUtc, $createdUtc
+    1111111111, ',,,,,,', ',,,,,,', $activeIp, '', $site, $pvePermission, $createdUtc, $createdUtc,
+    $ticketHash, $ticketExpiresUtc
 );";
                     insert.Parameters.AddWithValue("$accountId", accountId);
                     insert.Parameters.AddWithValue("$userName", userName);
@@ -224,6 +235,8 @@ VALUES (
                     insert.Parameters.AddWithValue("$site", site ?? string.Empty);
                     insert.Parameters.AddWithValue("$pvePermission", InitialPvePermission);
                     insert.Parameters.AddWithValue("$createdUtc", UtcNow());
+                    insert.Parameters.AddWithValue("$ticketHash", ticketHash);
+                    insert.Parameters.AddWithValue("$ticketExpiresUtc", ticketExpiresUtc);
                     insert.ExecuteNonQuery();
                 }
 
@@ -258,6 +271,7 @@ INSERT INTO DailyLogList(PlayerId) VALUES ($playerId);";
         /// </summary>
         public CharacterCreationResult CompleteCharacterCreation(
             long accountId,
+            string gameTicket,
             string nickname,
             int? requestedSex,
             int styleDate,
@@ -267,6 +281,8 @@ INSERT INTO DailyLogList(PlayerId) VALUES ($playerId);";
             string? clothColor = null,
             string? hatColor = null)
         {
+            if (string.IsNullOrWhiteSpace(gameTicket))
+                return new CharacterCreationResult(3, 0);
             if (string.IsNullOrWhiteSpace(nickname))
                 throw new ArgumentException("A character nickname is required.", nameof(nickname));
             if (requestedSex.HasValue && requestedSex.Value != 0 && requestedSex.Value != 1)
@@ -279,10 +295,12 @@ INSERT INTO DailyLogList(PlayerId) VALUES ($playerId);";
                 long playerId;
                 int currentSex;
                 int isFirst;
+                string sessionTicketHash;
+                string? sessionTicketExpiresUtc;
                 using (var player = connection.CreateCommand())
                 {
                     player.Transaction = transaction;
-                    player.CommandText = "SELECT PlayerId, Sex, IsFirst FROM Players WHERE AccountId = $accountId;";
+                    player.CommandText = "SELECT PlayerId, Sex, IsFirst, SessionTicketHash, SessionTicketExpiresUtc FROM Players WHERE AccountId = $accountId;";
                     player.Parameters.AddWithValue("$accountId", accountId);
                     using (var reader = player.ExecuteReader())
                     {
@@ -291,10 +309,12 @@ INSERT INTO DailyLogList(PlayerId) VALUES ($playerId);";
                         playerId = reader.GetInt64(0);
                         currentSex = reader.GetInt32(1);
                         isFirst = reader.GetInt32(2);
+                        sessionTicketHash = reader.GetString(3);
+                        sessionTicketExpiresUtc = reader.IsDBNull(4) ? null : reader.GetString(4);
                     }
                 }
 
-                if (isFirst > 0)
+                if (isFirst > 0 || !IsValidGameTicket(gameTicket, sessionTicketHash, sessionTicketExpiresUtc))
                     return new CharacterCreationResult(3, playerId);
 
                 using (var duplicate = connection.CreateCommand())
@@ -375,6 +395,98 @@ WHERE PlayerId = $playerId;";
                 transaction.Commit();
                 return new CharacterCreationResult(0, playerId);
             }
+        }
+
+        /// <summary>Refreshes the short-lived game ticket for an existing player.</summary>
+        public void UpdateGameTicket(long accountId, string gameTicket)
+        {
+            if (string.IsNullOrWhiteSpace(gameTicket))
+                throw new ArgumentException("A short-lived game ticket is required.", nameof(gameTicket));
+
+            using (var connection = _database.OpenConnection())
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText = @"
+UPDATE Players
+SET SessionTicketHash = $ticketHash,
+    SessionTicketExpiresUtc = $expiresUtc,
+    UpdatedUtc = $updatedUtc
+WHERE AccountId = $accountId;";
+                command.Parameters.AddWithValue("$ticketHash", HashGameTicket(gameTicket));
+                command.Parameters.AddWithValue("$expiresUtc", DateTime.UtcNow.AddMinutes(5).ToString("O", CultureInfo.InvariantCulture));
+                command.Parameters.AddWithValue("$updatedUtc", UtcNow());
+                command.Parameters.AddWithValue("$accountId", accountId);
+                if (command.ExecuteNonQuery() != 1)
+                    throw new InvalidOperationException("A player record does not exist for this account.");
+            }
+        }
+
+        /// <summary>Checks whether a short-lived game ticket is valid for the account's player.</summary>
+        public bool VerifyGameTicket(long accountId, string gameTicket)
+        {
+            if (string.IsNullOrWhiteSpace(gameTicket))
+                return false;
+
+            using (var connection = _database.OpenConnection())
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText = "SELECT SessionTicketHash, SessionTicketExpiresUtc FROM Players WHERE AccountId = $accountId;";
+                command.Parameters.AddWithValue("$accountId", accountId);
+                using (var reader = command.ExecuteReader())
+                {
+                    if (!reader.Read())
+                        return false;
+                    var hash = reader.GetString(0);
+                    var expiresUtc = reader.IsDBNull(1) ? null : reader.GetString(1);
+                    return IsValidGameTicket(gameTicket, hash, expiresUtc);
+                }
+            }
+        }
+
+        /// <summary>Returns the player's current character-creation state for login orchestration.</summary>
+        public PlayerLoginState? GetPlayerLoginState(long accountId)
+        {
+            using (var connection = _database.OpenConnection())
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText = "SELECT PlayerId, NickName, Sex, IsFirst FROM Players WHERE AccountId = $accountId;";
+                command.Parameters.AddWithValue("$accountId", accountId);
+                using (var reader = command.ExecuteReader())
+                {
+                    if (!reader.Read())
+                        return null;
+                    return new PlayerLoginState(
+                        reader.GetInt64(0),
+                        reader.GetString(1),
+                        reader.GetInt32(2),
+                        reader.GetInt32(3));
+                }
+            }
+        }
+
+        private static string HashGameTicket(string gameTicket)
+        {
+            using (var sha = SHA256.Create())
+                return Convert.ToBase64String(sha.ComputeHash(Encoding.UTF8.GetBytes(gameTicket)));
+        }
+
+        private static bool IsValidGameTicket(string gameTicket, string storedHash, string? expiresUtc)
+        {
+            if (string.IsNullOrEmpty(storedHash) || string.IsNullOrEmpty(expiresUtc))
+                return false;
+            if (!DateTime.TryParse(expiresUtc, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var expiry))
+                return false;
+            if (expiry.ToUniversalTime() <= DateTime.UtcNow)
+                return false;
+
+            var candidate = Encoding.UTF8.GetBytes(HashGameTicket(gameTicket));
+            var stored = Encoding.UTF8.GetBytes(storedHash);
+            if (candidate.Length != stored.Length)
+                return false;
+            var difference = 0;
+            for (var index = 0; index < candidate.Length; index++)
+                difference |= candidate[index] ^ stored[index];
+            return difference == 0;
         }
 
         private static CharacterDefaults ReadCharacterDefaults(SqliteConnection connection, SqliteTransaction transaction, int sex)
