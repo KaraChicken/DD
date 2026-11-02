@@ -1,4 +1,5 @@
 using System.Net;
+using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using DDTank.LocalData;
@@ -100,6 +101,49 @@ app.MapPost("/api/v1/accounts/register", (
         return Results.Conflict(new { error = "An account with this username already exists." });
     }
 });
+
+app.MapPost("/api/v1/accounts/login", (
+    AccountLoginRequest request,
+    CharacterCreationRepository characters,
+    IPasswordHasher<string> passwordHasher) =>
+{
+    var userName = request.UserName?.Trim() ?? string.Empty;
+    var password = request.Password ?? string.Empty;
+    var account = characters.FindAccountByUserName(userName);
+    if (account == null || !account.IsActive || string.IsNullOrEmpty(password))
+        return Results.Unauthorized();
+
+    var verification = passwordHasher.VerifyHashedPassword(account.UserName, account.PasswordHash, password);
+    if (verification == PasswordVerificationResult.Failed)
+        return Results.Unauthorized();
+
+    var ticketBytes = RandomNumberGenerator.GetBytes(32);
+    var gameTicket = Convert.ToBase64String(ticketBytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+    var player = characters.GetPlayerLoginState(account.AccountId);
+    if (player == null)
+    {
+        characters.CreatePendingPlayer(account.AccountId, gameTicket, false);
+        player = characters.GetPlayerLoginState(account.AccountId);
+    }
+    else
+    {
+        characters.UpdateGameTicket(account.AccountId, gameTicket);
+        player = characters.GetPlayerLoginState(account.AccountId);
+    }
+
+    if (player == null)
+        return Results.Problem("The local player record could not be initialized.");
+
+    return Results.Ok(new
+    {
+        accountId = account.AccountId,
+        playerId = player.PlayerId,
+        gameTicket,
+        expiresInSeconds = 300,
+        requiresCharacterCreation = player.RequiresCharacterCreation,
+        nickname = player.Nickname
+    });
+});
 app.MapRazorPages();
 app.MapMethods("/VisualizeRegister.ashx", new[] { "GET", "POST" }, HandleVisualizeRegisterAsync);
 app.MapMethods("/Request/VisualizeRegister.ashx", new[] { "GET", "POST" }, HandleVisualizeRegisterAsync);
@@ -113,7 +157,6 @@ app.Run();
 static async Task<IResult> HandleVisualizeRegisterAsync(
     HttpRequest request,
     CharacterCreationRepository characters,
-    IPasswordHasher<string> passwordHasher,
     NicknamePolicy nicknamePolicy,
     IConfiguration configuration)
 {
@@ -125,16 +168,12 @@ static async Task<IResult> HandleVisualizeRegisterAsync(
     }
 
     var userName = ReadValue("Name").Trim();
-    var password = ReadValue("Pass");
+    var gameTicket = ReadValue("Pass");
     var nickname = ReadValue("NickName");
 
     var account = characters.FindAccountByUserName(userName);
-    if (account == null || !account.IsActive || string.IsNullOrEmpty(password))
-        return VisualizeRegisterResponse(false, "UserName or Password incorrect.");
-
-    var verification = passwordHasher.VerifyHashedPassword(account.UserName, account.PasswordHash, password);
-    if (verification == PasswordVerificationResult.Failed)
-        return VisualizeRegisterResponse(false, "UserName or Password incorrect.");
+    if (account == null || !account.IsActive || string.IsNullOrEmpty(gameTicket))
+        return VisualizeRegisterResponse(false, "Invalid game session.");
 
     var validation = nicknamePolicy.Validate(nickname);
     if (!validation.IsValid)
@@ -150,7 +189,7 @@ static async Task<IResult> HandleVisualizeRegisterAsync(
 
     var styleDate = configuration.GetValue("CharacterCreation:ValidDate", 3);
     var result = characters.CompleteCharacterCreation(
-        account.AccountId, validation.Nickname, requestedSex, styleDate);
+        account.AccountId, gameTicket, validation.Nickname, requestedSex, styleDate);
 
     return result.ResultCode switch
     {
@@ -171,3 +210,4 @@ static IResult VisualizeRegisterResponse(bool success, string message)
 }
 
 public sealed record AccountRegistrationRequest(string? UserName, string? Password, string? Email);
+public sealed record AccountLoginRequest(string? UserName, string? Password);
