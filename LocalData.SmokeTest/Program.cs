@@ -172,6 +172,12 @@ PRAGMA user_version = 2;";
                 stats.GetInt32(2) != 250 || stats.GetInt32(3) != 40)
                 throw new InvalidOperationException("The starting combat attributes were not copied from the configured arm item.");
         }
+
+        characterCommand.Parameters.Clear();
+        characterCommand.CommandText = "SELECT COUNT(*) FROM PlayerInventory WHERE PlayerId = $playerId AND ValidDate = 3;";
+        characterCommand.Parameters.AddWithValue("$playerId", firstPlayerId);
+        if (Convert.ToInt32(characterCommand.ExecuteScalar()) != 5)
+            throw new InvalidOperationException("The configured three-day starting appearance validity was not applied.");
     }
 
     var secondAccountId = characterRepository.CreateAccount("second.player", "test-password-hash");
