@@ -348,3 +348,14 @@ MigrationBackup/
 
 # Ionide (cross platform F# VS Code tools) working folder
 .ionide/
+
+# Local database files and SQL Server backups must never enter release/source changes accidentally
+*.sqlite
+*.sqlite3
+*.db-wal
+*.db-shm
+*.BAK
+*.bak
+*.mdf
+*.ldf
+*.ndf
