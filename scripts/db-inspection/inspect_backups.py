@@ -65,6 +65,8 @@ def rows(output: str) -> list[list[str]]:
 
 
 def selected_procedure_definitions(db_name: str, names: list[str]) -> list[dict]:
+    if not names:
+        return []
     quoted_names = ", ".join(quote_sql(name) for name in names)
     query = f"""
     SET NOCOUNT ON;
