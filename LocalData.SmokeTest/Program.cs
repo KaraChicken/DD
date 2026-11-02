@@ -4,12 +4,67 @@ using Microsoft.Data.Sqlite;
 var root = Path.Combine(Path.GetTempPath(), "DDTank.LocalData.SmokeTest", Guid.NewGuid().ToString("N"));
 var databasePath = Path.Combine(root, "data", "ddtank.sqlite3");
 var backupPath = Path.Combine(root, "backups", "smoke-test.sqlite3");
+var seedPath = Path.Combine(root, "character-reference-seed.sqlite3");
 
 try
 {
     var database = new LocalSqliteDatabase(databasePath);
     database.Initialize();
     database.Initialize();
+
+    Directory.CreateDirectory(root);
+    var seedBuilder = new SqliteConnectionStringBuilder
+    {
+        DataSource = seedPath,
+        Mode = SqliteOpenMode.ReadWriteCreate,
+        Pooling = false
+    };
+    using (var seedConnection = new SqliteConnection(seedBuilder.ToString()))
+    {
+        seedConnection.Open();
+        using (var seedCommand = seedConnection.CreateCommand())
+        {
+            seedCommand.CommandText = @"
+CREATE TABLE ShopGoods (
+    TemplateId INTEGER NOT NULL PRIMARY KEY,
+    Picture TEXT NULL,
+    CategoryId INTEGER NOT NULL,
+    MaxStack INTEGER NOT NULL,
+    Attack INTEGER NOT NULL,
+    Defence INTEGER NOT NULL,
+    Agility INTEGER NOT NULL,
+    Luck INTEGER NOT NULL
+);
+CREATE TABLE BagInit (
+    Id INTEGER NOT NULL PRIMARY KEY,
+    Sex INTEGER NOT NULL,
+    TemplateId INTEGER NOT NULL,
+    ItemCount INTEGER NOT NULL,
+    ValidDate INTEGER NOT NULL,
+    StrengthenLevel INTEGER NOT NULL,
+    AttackCompose INTEGER NOT NULL,
+    DefendCompose INTEGER NOT NULL,
+    LuckCompose INTEGER NOT NULL,
+    AgilityCompose INTEGER NOT NULL,
+    IsBinds INTEGER NOT NULL,
+    BagType INTEGER NOT NULL,
+    Place INTEGER NOT NULL
+);
+INSERT INTO ShopGoods VALUES (1001, 'smoke.png', 1, 99, 1, 2, 3, 4);
+PRAGMA user_version = 1;";
+            seedCommand.ExecuteNonQuery();
+        }
+    }
+
+    database.ImportCharacterReferenceSeed(seedPath);
+    database.ImportCharacterReferenceSeed(seedPath);
+    using (var referenceConnection = database.OpenConnection())
+    using (var referenceCommand = referenceConnection.CreateCommand())
+    {
+        referenceCommand.CommandText = "SELECT COUNT(*) FROM ShopGoods;";
+        if (Convert.ToInt32(referenceCommand.ExecuteScalar()) != 1)
+            throw new InvalidOperationException("Character reference seed was not imported exactly once.");
+    }
 
     var migrationApplied = database.ApplyMigration(1, @"
 CREATE TABLE ""SmokeTest"" (
