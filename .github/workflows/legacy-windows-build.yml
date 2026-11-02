@@ -206,6 +206,27 @@ jobs:
                 throw
               }
             }
+
+            $loginBody = @{
+              userName = "Portable.Smoke"
+              password = "PortableSmokePassword-2026"
+            } | ConvertTo-Json
+            $login = Invoke-RestMethod -Uri "http://127.0.0.1:5080/api/v1/accounts/login" -Method Post -ContentType "application/json" -Body $loginBody -TimeoutSec 5
+            if (-not $login.gameTicket -or $login.expiresInSeconds -ne 300 -or -not $login.requiresCharacterCreation) {
+              throw "Account login did not issue a short-lived ticket for first-character creation."
+            }
+
+            $roleBody = "Name=Portable.Smoke&Pass=$([uri]::EscapeDataString($login.gameTicket))&NickName=ZyxQ7&Sex=true"
+            $roleResponse = Invoke-WebRequest -Uri "http://127.0.0.1:5080/Request/VisualizeRegister.ashx" -Method Post -ContentType "application/x-www-form-urlencoded" -Body $roleBody -TimeoutSec 5
+            [xml]$roleXml = $roleResponse.Content
+            if ($roleXml.Result.value -ne "true") {
+              throw "Flash-compatible first-character registration failed: $($roleXml.Result.message)"
+            }
+
+            $loginAgain = Invoke-RestMethod -Uri "http://127.0.0.1:5080/api/v1/accounts/login" -Method Post -ContentType "application/json" -Body $loginBody -TimeoutSec 5
+            if ($loginAgain.requiresCharacterCreation -or $loginAgain.gameTicket -eq $login.gameTicket) {
+              throw "Existing-player login did not rotate the game ticket or recognize the created character."
+            }
           }
           finally {
             if ($process -and -not $process.HasExited) {
