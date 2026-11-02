@@ -1,0 +1,68 @@
+name: Database backup inspection
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - refactor/windows-portable-bootstrap
+    paths:
+      - "Db/**"
+      - "Source Server/SqlDataProvider/**"
+      - "Source Server/Bussiness/**"
+      - "scripts/db-inspection/**"
+      - ".github/workflows/database-inspection.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  inspect-sqlserver-backups:
+    name: Inspect MSSQL backups without exporting player data
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Start ephemeral SQL Server 2022
+        env:
+          MSSQL_SA_PASSWORD: ${{ secrets.GITHUB_TOKEN }}-Aa9!xZ7#pQ2
+        run: |
+          # This throwaway password is generated per run and never persisted.
+          PASSWORD="$(python3 -c 'import secrets; print("Aa9!" + secrets.token_urlsafe(24) + "Z7#")')"
+          echo "::add-mask::$PASSWORD"
+          echo "MSSQL_SA_PASSWORD=$PASSWORD" >> "$GITHUB_ENV"
+          docker run --name ddtank-sqlserver-inspect \
+            -e ACCEPT_EULA=Y \
+            -e MSSQL_PID=Developer \
+            -e MSSQL_SA_PASSWORD="$PASSWORD" \
+            -p 1433:1433 -d mcr.microsoft.com/mssql/server:2022-latest
+
+          for attempt in $(seq 1 60); do
+            if docker exec ddtank-sqlserver-inspect \
+              /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$PASSWORD" -C -Q "SELECT 1" >/dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 5
+          done
+          docker logs ddtank-sqlserver-inspect
+          exit 1
+
+      - name: Restore and inspect backup metadata
+        env:
+          MSSQL_SA_PASSWORD: ${{ env.MSSQL_SA_PASSWORD }}
+        run: |
+          python3 scripts/db-inspection/inspect_backups.py
+
+      - name: Upload metadata-only inventory
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ddtank-database-metadata-inventory
+          path: artifacts/database-inspection/database-inventory.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Remove ephemeral SQL Server
+        if: always()
+        run: docker rm -f ddtank-sqlserver-inspect || true
