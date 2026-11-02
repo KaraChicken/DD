@@ -143,4 +143,5 @@ Important boundary: this library is a tested foundation, **not yet wired into th
 - Never include `.BAK`, `.mdf`, `.ldf`, `.ndf`, credentials, or restored user data in release artifacts.
 - The original backups remain migration inputs only until the migration is verified. Do not delete or rewrite them as part of this work.
 - Existing connection strings contain SQL Server host/user/password literals in legacy service configuration. Treat these as exposed legacy configuration, not valid production secrets; rotate any real credentials and replace them with local generated configuration before distributing any build.
+- The legacy Request Web.config files also contain an external payment URL with a hard-coded token/signature. Payments are out of scope for the single-player edition; do not copy this configuration into the portable package, and rotate the token if it is still valid.
 - A release is not SQL-free until a clean Windows runner can start the complete portable game, create a character through the original Flash flow, persist game state, restart, and restore a user backup without any SQL Server installation.
