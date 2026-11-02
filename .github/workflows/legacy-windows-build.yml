@@ -207,6 +207,24 @@ jobs:
               }
             }
 
+            $wrongPasswordBody = @{
+              userName = "Portable.Smoke"
+              password = "DefinitelyWrongPassword-2026"
+            } | ConvertTo-Json
+            $wrongPassword = Invoke-WebRequest -Uri "http://127.0.0.1:5080/api/v1/accounts/login" -Method Post -ContentType "application/json" -Body $wrongPasswordBody -TimeoutSec 5 -SkipHttpErrorCheck
+            if ($wrongPassword.StatusCode -ne 401) {
+              throw "Login accepted an incorrect password."
+            }
+
+            $unknownAccountBody = @{
+              userName = "Missing.Account"
+              password = "PortableSmokePassword-2026"
+            } | ConvertTo-Json
+            $unknownAccount = Invoke-WebRequest -Uri "http://127.0.0.1:5080/api/v1/accounts/login" -Method Post -ContentType "application/json" -Body $unknownAccountBody -TimeoutSec 5 -SkipHttpErrorCheck
+            if ($unknownAccount.StatusCode -ne 401) {
+              throw "Login accepted an account that does not exist."
+            }
+
             $loginBody = @{
               userName = "Portable.Smoke"
               password = "PortableSmokePassword-2026"
