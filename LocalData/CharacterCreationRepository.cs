@@ -149,6 +149,34 @@ VALUES ($userName, $passwordHash, $email, $createdUtc, 1);";
             }
         }
 
+        /// <summary>Finds an account credential record for password verification.</summary>
+        public AccountCredential? FindAccountByUserName(string userName)
+        {
+            if (string.IsNullOrWhiteSpace(userName))
+                return null;
+
+            using (var connection = _database.OpenConnection())
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText = @"
+SELECT AccountId, UserName, PasswordHash, IsActive
+FROM Accounts
+WHERE UserName = $userName COLLATE SQL_Latin1_General_CP1_CI_AS
+LIMIT 1;";
+                command.Parameters.AddWithValue("$userName", userName.Trim());
+                using (var reader = command.ExecuteReader())
+                {
+                    if (!reader.Read())
+                        return null;
+                    return new AccountCredential(
+                        reader.GetInt64(0),
+                        reader.GetString(1),
+                        reader.GetString(2),
+                        reader.GetInt32(3) != 0);
+                }
+            }
+        }
+
         /// <summary>
         /// Creates the blank game-side player row on first game login, mirroring SP_Users_Active.
         /// The nickname remains empty until the Flash VisualizeRegister flow completes.
