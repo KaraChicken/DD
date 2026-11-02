@@ -8,6 +8,8 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../LocalData/DDTank.LocalData.csproj" />
+    <PackageReference Include="System.Text.Encoding.CodePages" Version="10.0.0" />
+    <Content Include="../Request/Illegalcharacters/Illegalcharacters.txt" Link="Data/Illegalcharacters.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="Seeds/**/*" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
