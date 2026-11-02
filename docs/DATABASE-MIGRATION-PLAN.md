@@ -45,6 +45,13 @@ Additional findings:
 
 These counts describe database objects, not required portable features. The next step is to trace the actual startup and gameplay call graph and classify the procedures/tables into required, optional, and obsolete domains. The current data inventory is too large to justify a wholesale automatic SQLite conversion.
 
+The second metadata pass also recorded per-table row counts (counts only, no values):
+- `Db_Membership_20200702.BAK` contains 24 rows in `Mem_Users`, 24 in `Mem_UserInfo`, and 24 in `Webshop_Account`.
+- `Db_Tank41.BAK` contains 24 rows in each of `Sys_Users_Detail`, `Sys_Users_Fight`, `Sys_Users_Texp`, and `Sys_VIP_Info`; it also contains 1,481 `Sys_Users_Goods` rows, 28 `Sys_Users_Pet` rows, 13 `Sys_Users_Friends` rows, and 384 `User_Messages` rows.
+- The `Db_Tank` backup is largely reference/configuration data (for example, 390 `Game_Map`, 467 `Quest`, 962 `NPC_Info`, and 10,427 `Shop_Goods` rows), but it still needs a table-by-table seed-data allowlist.
+
+This confirms that at least two backups contain historical account/player-associated records. They are explicitly excluded from the portable seed database: the product is a fresh single-player rebuild and does not need those identities or saves. Only reviewed schema and allowlisted static game configuration/reference rows may be migrated. The three backups must remain private migration inputs and must not be included in player downloads.
+
 ## CI inspection artifact
 
 The successful first run is [workflow run 41420505591](https://github.com/KaraChicken/DD/actions/runs/41420505591). Its metadata-only artifact is [ddtank-database-metadata-inventory](https://github.com/KaraChicken/DD/actions/runs/41420505591) (seven-day retention). Re-run the workflow to regenerate it; never commit restored database files or user data.
