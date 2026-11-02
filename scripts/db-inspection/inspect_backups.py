@@ -240,7 +240,7 @@ def main() -> None:
         print(f"Inspecting {backup.name} ({backup.stat().st_size} bytes)", flush=True)
         results.append(inspect_backup(backup, index))
     report = {
-        "disclaimer": "Metadata only. No table data was exported.",
+        "disclaimer": "Schema metadata and selected stored procedure definitions only. No table rows, credentials, backup files, or database files were exported.",
         "backups": results,
         "static_provider_audit": static_provider_audit(),
     }
