@@ -28,8 +28,12 @@ REPORT.mkdir(parents=True, exist_ok=True)
 def docker(*args: str, input_text: str | None = None) -> str:
     result = subprocess.run(
         ["docker", *args], input=input_text, text=True,
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=True,
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
     )
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"Command failed (exit {result.returncode}): docker {' '.join(args)}\\n{result.stdout}"
+        )
     return result.stdout
 
 
