@@ -36,7 +36,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="log4net">
-      <HintPath>..\Game.Base\bin\Debug\log4net.dll</HintPath>
+      <HintPath>..\Game.Base\lib\log4net.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Configuration" />
@@ -666,7 +666,6 @@
     <EmbeddedResource Include="Server\Config\logconfig.xml" />
   </ItemGroup>
   <ItemGroup>
-    <Analyzer Include="..\Bussiness\bin\Debug\Bussiness.dll" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Bussiness\Bussiness.csproj">
