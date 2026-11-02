@@ -1,11 +1,27 @@
 using System.Net;
 using DDTank.Web.Infrastructure;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 
 var builder = WebApplication.CreateBuilder(args);
 
+var configuredDataDirectory = builder.Configuration["LocalData:Directory"];
+var localApplicationData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+if (string.IsNullOrWhiteSpace(localApplicationData) && string.IsNullOrWhiteSpace(configuredDataDirectory))
+    throw new InvalidOperationException("The current user does not have a LocalApplicationData directory.");
+
+var dataDirectory = string.IsNullOrWhiteSpace(configuredDataDirectory)
+    ? Path.Combine(localApplicationData, "DDTank", "data")
+    : Path.GetFullPath(configuredDataDirectory);
+var referenceSeedPath = Path.Combine(AppContext.BaseDirectory, "Seeds", "character-reference-seed.sqlite3");
+var localDatabase = new LocalDatabaseRuntime(dataDirectory, referenceSeedPath);
+
+builder.Services.AddSingleton(localDatabase);
+builder.Services.AddSingleton(localDatabase.Database);
+builder.Services.AddSingleton(localDatabase.Characters);
 builder.Services.AddProblemDetails();
 builder.Services.AddRazorPages();
-builder.Services.AddHealthChecks();
+builder.Services.AddHealthChecks()
+    .AddCheck<LocalDatabaseHealthCheck>("local-sqlite-database");
 builder.Services.AddOptions<LocalWebOptions>()
     .Bind(builder.Configuration.GetSection(LocalWebOptions.SectionName))
     .Validate(o => Uri.TryCreate(o.BaseUrl, UriKind.Absolute, out var uri)
@@ -27,20 +43,25 @@ app.Use(async (context, next) =>
 });
 
 app.UseStaticFiles();
-app.MapHealthChecks("/health/live");
-app.MapGet("/health/ready", () => Results.Ok(new
+app.MapHealthChecks("/health/live", new HealthCheckOptions
 {
-    status = "ready",
-    component = "web-host",
-    note = "Database and game-runtime readiness checks are not wired yet."
-}));
-app.MapGet("/api/v1/server/info", () => Results.Ok(new
+    Predicate = _ => false
+});
+app.MapHealthChecks("/health/ready");
+app.MapGet("/api/v1/server/info", (LocalDatabaseRuntime database) =>
 {
-    name = "DDTank",
-    edition = "Windows Portable",
-    web = "ASP.NET Core",
-    gameRuntime = "not-connected"
-}));
+    var ready = database.IsReady(out var description);
+    return Results.Ok(new
+    {
+        name = "DDTank",
+        edition = "Windows Portable",
+        web = "ASP.NET Core",
+        database = "SQLite",
+        databaseReady = ready,
+        databaseStatus = description,
+        gameRuntime = "not-connected"
+    });
+});
 app.MapRazorPages();
 
 var localOptions = app.Services.GetRequiredService<
