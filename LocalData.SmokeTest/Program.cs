@@ -4,7 +4,8 @@ using Microsoft.Data.Sqlite;
 var root = Path.Combine(Path.GetTempPath(), "DDTank.LocalData.SmokeTest", Guid.NewGuid().ToString("N"));
 var databasePath = Path.Combine(root, "data", "ddtank.sqlite3");
 var backupPath = Path.Combine(root, "backups", "smoke-test.sqlite3");
-var seedPath = Path.Combine(root, "character-reference-seed.sqlite3");
+var suppliedSeedPath = args.Length > 0 ? Path.GetFullPath(args[0]) : null;
+var seedPath = suppliedSeedPath ?? Path.Combine(root, "character-reference-seed.sqlite3");
 
 try
 {
@@ -12,19 +13,21 @@ try
     database.Initialize();
     database.Initialize();
 
-    Directory.CreateDirectory(root);
-    var seedBuilder = new SqliteConnectionStringBuilder
+    if (suppliedSeedPath == null)
     {
-        DataSource = seedPath,
-        Mode = SqliteOpenMode.ReadWriteCreate,
-        Pooling = false
-    };
-    using (var seedConnection = new SqliteConnection(seedBuilder.ToString()))
-    {
-        seedConnection.Open();
-        using (var seedCommand = seedConnection.CreateCommand())
+        Directory.CreateDirectory(root);
+        var seedBuilder = new SqliteConnectionStringBuilder
         {
-            seedCommand.CommandText = @"
+            DataSource = seedPath,
+            Mode = SqliteOpenMode.ReadWriteCreate,
+            Pooling = false
+        };
+        using (var seedConnection = new SqliteConnection(seedBuilder.ToString()))
+        {
+            seedConnection.Open();
+            using (var seedCommand = seedConnection.CreateCommand())
+            {
+                seedCommand.CommandText = @"
 CREATE TABLE ShopGoods (
     TemplateId INTEGER NOT NULL PRIMARY KEY,
     Picture TEXT NULL,
@@ -52,18 +55,52 @@ CREATE TABLE BagInit (
 );
 INSERT INTO ShopGoods VALUES (1001, 'smoke.png', 1, 99, 1, 2, 3, 4);
 PRAGMA user_version = 1;";
-            seedCommand.ExecuteNonQuery();
+                seedCommand.ExecuteNonQuery();
+            }
         }
     }
 
+    long expectedShopGoods;
+    long expectedBagInit;
+    var seedBuilderForRead = new SqliteConnectionStringBuilder
+    {
+        DataSource = seedPath,
+        Mode = SqliteOpenMode.ReadOnly,
+        Pooling = false
+    };
+    using (var seedConnection = new SqliteConnection(seedBuilderForRead.ToString()))
+    {
+        seedConnection.Open();
+        using (var seedCommand = seedConnection.CreateCommand())
+        {
+            seedCommand.CommandText = "PRAGMA user_version;";
+            if (Convert.ToInt32(seedCommand.ExecuteScalar()) != 1)
+                throw new InvalidOperationException("Unexpected character reference seed schema version.");
+
+            seedCommand.CommandText = "SELECT COUNT(*) FROM ShopGoods;";
+            expectedShopGoods = Convert.ToInt64(seedCommand.ExecuteScalar());
+
+            seedCommand.CommandText = "SELECT COUNT(*) FROM BagInit;";
+            expectedBagInit = Convert.ToInt64(seedCommand.ExecuteScalar());
+        }
+    }
+
+    if (expectedShopGoods <= 0)
+        throw new InvalidOperationException("The character reference seed contains no ShopGoods rows.");
+
     database.ImportCharacterReferenceSeed(seedPath);
     database.ImportCharacterReferenceSeed(seedPath);
+
     using (var referenceConnection = database.OpenConnection())
     using (var referenceCommand = referenceConnection.CreateCommand())
     {
         referenceCommand.CommandText = "SELECT COUNT(*) FROM ShopGoods;";
-        if (Convert.ToInt32(referenceCommand.ExecuteScalar()) != 1)
-            throw new InvalidOperationException("Character reference seed was not imported exactly once.");
+        if (Convert.ToInt64(referenceCommand.ExecuteScalar()) != expectedShopGoods)
+            throw new InvalidOperationException("ShopGoods reference rows were not imported exactly.");
+
+        referenceCommand.CommandText = "SELECT COUNT(*) FROM BagInit;";
+        if (Convert.ToInt64(referenceCommand.ExecuteScalar()) != expectedBagInit)
+            throw new InvalidOperationException("BagInit reference rows were not imported exactly.");
     }
 
     var migrationApplied = database.ApplyMigration(1, @"
@@ -99,11 +136,11 @@ CREATE TABLE ""SmokeTest"" (
     using (var backupCommand = backupConnection.CreateCommand())
     {
         backupCommand.CommandText = "SELECT COUNT(*) FROM ShopGoods;";
-        if (Convert.ToInt32(backupCommand.ExecuteScalar()) != 1)
+        if (Convert.ToInt64(backupCommand.ExecuteScalar()) != expectedShopGoods)
             throw new InvalidOperationException("The standalone backup did not retain imported reference data.");
     }
 
-    Console.WriteLine("PASS: initialization, reference seed import, transactional migrations, persistence, integrity check, and backup.");
+    Console.WriteLine($"PASS: seed import ({expectedShopGoods} ShopGoods, {expectedBagInit} BagInit), transactional migrations, persistence, integrity check, and backup.");
 }
 finally
 {
