@@ -70,6 +70,8 @@ The ActionScript login flow confirms that `SelectListManager.setup` marks an acc
 
 Therefore the precise Flash creation screen and its request endpoint/packet handler are still unverified in the checked-in ActionScript. The server-side `PlayerBussiness.RegisterPlayer` / `SP_Users_RegisterNotValidate` contract is a strong candidate, but it must not be wired into the new SQLite path until the actual Flash request is traced. The original role creation UX remains unchanged as a requirement.
 
+The source also references `Check_User`, `SP_CheckAccount`, and `SP_Account_Register`, but none of those procedure names exists in any of the three supplied backups. They appear to be stale/alternate paths or dependencies from an absent database/version. The migration must not recreate them from guesses; trace whether they are actually called in the active login/creation flow. Conversely, `Mem_Code_Sto` is present and is called by `Mem_Users_CreateUser` to generate account IDs, so its definition is included in the expanded inspection.
+
 ## Character-creation transaction dependencies found in the backup
 
 The selected procedure source reveals the concrete database contract behind the first-time player flow:
