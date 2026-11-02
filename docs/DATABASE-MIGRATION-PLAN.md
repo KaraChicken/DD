@@ -80,6 +80,8 @@ The single-player edition should migrate only data required by the retained game
 7. Switch the portable launcher to initialize SQLite on first run, validate schema version, run migrations transactionally, and keep user saves/backups under the user data directory.
 8. Remove SQL Server dependencies from the portable package only after the full retained gameplay path passes clean-machine tests.
 
+The legacy solution's Windows Release build also passed after correcting stale service project references in `Road.Service.csproj` and removing invalid Debug-output analyzer entries from `Fighting.Service.csproj`. The successful baseline is [run 41422074766](https://github.com/KaraChicken/DD/actions/runs/41422074766). This verifies compilation only; it does not imply that the old server can start without SQL Server.
+
 ## Embedded SQLite foundation implementation
 
 A new `LocalData/DDTank.LocalData.csproj` library now targets .NET Standard 2.0 and uses `Microsoft.Data.Sqlite` with an explicitly pinned SQLitePCLRaw native bundle. It provides:
