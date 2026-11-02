@@ -33,16 +33,15 @@
 
 ## Verified cloud-build checkpoint (2026-11-02)
 
-The workflow passed all four jobs in [run 41426474537](https://github.com/KaraChicken/DD/actions/runs/41426474537):
-- Legacy .NET Framework solution compiles in Release.
-- The MSSQL backups are restored only inside an ephemeral CI SQL Server container; the filtered SQLite seed is generated and validated.
-- The LocalData smoke test imports the actual seed, creates pending players, completes male and female first-character flows, checks nickname uniqueness, and verifies backup persistence.
-- The self-contained win-x64 ASP.NET Core host starts with the bundled seed; its SQLite readiness endpoint reports healthy.
+[Workflow run 41427911460](https://github.com/KaraChicken/DD/actions/runs/41427911460) passed all four jobs:
+- The legacy .NET Framework solution compiles in Release.
+- The MSSQL backups are restored only inside an ephemeral CI SQL Server container; a filtered SQLite reference seed is generated.
+- The actual seed is imported and tested: pending players, male/female first-character creation, nickname uniqueness, short-lived ticket validation/rotation, integrity, and backup persistence.
+- The self-contained win-x64 ASP.NET Core host starts with the bundled seed. Its smoke test verifies database readiness, account-only registration, duplicate username rejection, ticket issuance on login, and the Flash-compatible `/Request/VisualizeRegister.ashx` XML response.
 
-Artifacts (14-day retention): [SQLite-backed web host, win-x64](https://github.com/KaraChicken/DD/actions/runs/41426474537/artifacts/13133020064) (47.4 MB), [character-reference seed](https://github.com/KaraChicken/DD/actions/runs/41426474537/artifacts/13132306975), and [legacy Release build outputs](https://github.com/KaraChicken/DD/actions/runs/41426474537/artifacts/13132152520).
+Artifacts (14-day retention): [SQLite-backed web host, win-x64](https://github.com/KaraChicken/DD/actions/runs/41427911460/artifacts/13133261333) (47.4 MB), [character-reference seed](https://github.com/KaraChicken/DD/actions/runs/41427911460/artifacts/13131764889), and [legacy Release build outputs](https://github.com/KaraChicken/DD/actions/runs/41427911460/artifacts/13133400355).
 
-This is a verified database/web-host milestone, not the finished game package. The old Game.Server, Center, and Fighting runtime still uses SqlClient/SQL Server; the Flash-compatible login and `VisualizeRegister.ashx` endpoints are not yet wired to the new SQLite repository, and the SWF/Ruffle compatibility work remains outstanding. The current web-host artifact must not be presented as a playable game.
-
+This is a verified local account/database/character-creation web milestone, not the finished game package. The SWF still uses the legacy login handshake, and the legacy Game.Server, Center, and Fighting services still use SqlClient/SQL Server and do not yet validate the new SQLite tickets. The current web-host artifact is not a playable game.
 ## Important constraints
 - The first workflow is a build-validation baseline, not a finished game EXE.
 - The initial MSSQL backup/schema inventory and a filtered SQLite character-reference seed are documented in `docs/DATABASE-MIGRATION-PLAN.md`. Full runtime procedure/call-path coverage is still in progress; do not replace the SQL Server provider wholesale until each retained gameplay flow has a tested SQLite implementation.
