@@ -199,7 +199,7 @@ PRAGMA user_version = 2;";
             throw new InvalidOperationException("A rejected duplicate nickname partially modified the pending player.");
     }
 
-    var migrationApplied = database.ApplyMigration(1, @"
+    var migrationApplied = database.ApplyMigration(999, @"
 CREATE TABLE ""SmokeTest"" (
     ""Id"" INTEGER NOT NULL PRIMARY KEY,
     ""Value"" TEXT NOT NULL
@@ -207,7 +207,7 @@ CREATE TABLE ""SmokeTest"" (
     if (!migrationApplied)
         throw new InvalidOperationException("The first migration was not applied.");
 
-    if (database.ApplyMigration(1, "SELECT 1;"))
+    if (database.ApplyMigration(999, "SELECT 1;"))
         throw new InvalidOperationException("A migration version was applied more than once.");
 
     using (var connection = database.OpenConnection())
