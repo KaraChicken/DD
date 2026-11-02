@@ -215,6 +215,14 @@ CREATE TABLE ""SmokeTest"" (
         backupCommand.CommandText = "SELECT COUNT(*) FROM CharacterDefaults;";
         if (Convert.ToInt64(backupCommand.ExecuteScalar()) != expectedCharacterDefaults)
             throw new InvalidOperationException("The standalone backup did not retain character defaults.");
+        
+        backupCommand.CommandText = "SELECT COUNT(*) FROM Players;";
+        if (Convert.ToInt32(backupCommand.ExecuteScalar()) != 2)
+            throw new InvalidOperationException("The standalone backup did not retain player progress.");
+
+        backupCommand.CommandText = "SELECT COUNT(*) FROM PlayerInventory;";
+        if (Convert.ToInt32(backupCommand.ExecuteScalar()) != 5)
+            throw new InvalidOperationException("The standalone backup did not retain the player's starting inventory.");
     }
 
     Console.WriteLine($"PASS: seed import ({expectedShopGoods} ShopGoods, {expectedBagInit} BagInit, {expectedCharacterDefaults} CharacterDefaults), pending player, first character creation, nickname uniqueness, migrations, persistence, integrity check, and backup.");
