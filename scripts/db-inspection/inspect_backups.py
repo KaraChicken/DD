@@ -227,6 +227,7 @@ def build_character_reference_seed(db_tank41: str, db_tank: str) -> dict:
         "source": {
             "ShopGoods": "Db_Tank_20200702.BAK / dbo.Shop_Goods",
             "BagInit": "Db_Tank41.BAK / dbo.Bag_Init",
+            "CharacterDefaults": "Request/Web.config / BoyVisualizeItem + GrilVisualizeItem",
         },
         "integrity_check": "ok",
         "scope": "Filtered character-creation reference data only; no account/player rows.",
