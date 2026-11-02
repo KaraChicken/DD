@@ -1,4 +1,8 @@
 using System.Net;
+using System.Text.RegularExpressions;
+using DDTank.LocalData;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.Data.Sqlite;
 using DDTank.Web.Infrastructure;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 
@@ -18,6 +22,7 @@ var localDatabase = new LocalDatabaseRuntime(dataDirectory, referenceSeedPath);
 builder.Services.AddSingleton(localDatabase);
 builder.Services.AddSingleton(localDatabase.Database);
 builder.Services.AddSingleton(localDatabase.Characters);
+builder.Services.AddSingleton<IPasswordHasher<string>, PasswordHasher<string>>();
 builder.Services.AddProblemDetails();
 builder.Services.AddRazorPages();
 builder.Services.AddHealthChecks()
@@ -62,6 +67,37 @@ app.MapGet("/api/v1/server/info", (LocalDatabaseRuntime database) =>
         gameRuntime = "not-connected"
     });
 });
+app.MapPost("/api/v1/accounts/register", (
+    AccountRegistrationRequest request,
+    CharacterCreationRepository characters,
+    IPasswordHasher<string> passwordHasher) =>
+{
+    var userName = request.UserName?.Trim() ?? string.Empty;
+    var password = request.Password ?? string.Empty;
+    var email = request.Email?.Trim();
+
+    if (!Regex.IsMatch(userName, @"^[\p{L}\p{N}_.-]{3,24}$"))
+        return Results.BadRequest(new { error = "Username must be 3-24 letters, digits, dots, underscores, or hyphens." });
+    if (password.Length < 8 || password.Length > 128)
+        return Results.BadRequest(new { error = "Password must be between 8 and 128 characters." });
+    if (email != null && email.Length > 254)
+        return Results.BadRequest(new { error = "Email address is too long." });
+
+    var passwordHash = passwordHasher.HashPassword(userName, password);
+    try
+    {
+        var accountId = characters.CreateAccount(userName, passwordHash, email);
+        return Results.Created("/api/v1/accounts/" + accountId, new
+        {
+            accountId,
+            userName
+        });
+    }
+    catch (SqliteException exception) when (exception.SqliteErrorCode == 19)
+    {
+        return Results.Conflict(new { error = "An account with this username already exists." });
+    }
+});
 app.MapRazorPages();
 
 var localOptions = app.Services.GetRequiredService<
@@ -69,3 +105,5 @@ var localOptions = app.Services.GetRequiredService<
 app.Urls.Add(localOptions.BaseUrl);
 
 app.Run();
+
+public sealed record AccountRegistrationRequest(string? UserName, string? Password, string? Email);
