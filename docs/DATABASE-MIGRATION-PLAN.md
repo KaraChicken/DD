@@ -74,6 +74,8 @@ The selected procedure source reveals the concrete database contract behind the 
 - This is a cross-database SQL Server operation involving both the game database and the reference database. A SQLite implementation must place the required reference tables in the local database (or attach a second SQLite file deliberately) and preserve the entire operation as one transaction. It must not split character creation into partially committed writes.
 - The procedure's nickname check is a database-level uniqueness check; the SQLite port must enforce uniqueness under the intended collation, not only in UI validation.
 
+A useful migration caveat from the row-count inventory: `Db_Tank41.dbo.Bag_Init` exists but contains **zero rows** in the supplied backup. The character-creation procedure reads it to populate the starter bag, so a direct port would currently produce no additional Bag_Init-derived items (the procedure still inserts the selected appearance equipment directly). This needs a gameplay decision/test; do not invent starter items or silently substitute another table.
+
 This is a much narrower and more actionable first migration slice than attempting to translate all 300 game stored procedures at once. The next implementation target is the account/first-character path, after confirming the exact Flash packet handler and the live service call sequence.
 
 ## CI inspection artifact
