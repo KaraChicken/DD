@@ -80,6 +80,19 @@ The single-player edition should migrate only data required by the retained game
 7. Switch the portable launcher to initialize SQLite on first run, validate schema version, run migrations transactionally, and keep user saves/backups under the user data directory.
 8. Remove SQL Server dependencies from the portable package only after the full retained gameplay path passes clean-machine tests.
 
+## Embedded SQLite foundation implementation
+
+A new `LocalData/DDTank.LocalData.csproj` library now targets .NET Standard 2.0 and uses `Microsoft.Data.Sqlite` with an explicitly pinned SQLitePCLRaw native bundle. It provides:
+- default per-user path `%LOCALAPPDATA%/DDTank/data/ddtank.sqlite3`;
+- first-run database creation, WAL mode, foreign-key enforcement, and a versioned migration ledger;
+- transactional, one-time schema migrations;
+- SQLite integrity checks;
+- consistent standalone backup creation without overwriting an existing backup.
+
+The `LocalData.SmokeTest` project exercises initialization, repeat initialization, migration idempotency, insert/read persistence, integrity verification, and standalone backup verification. This passed on a Windows GitHub Actions runner in [run 41421724645](https://github.com/KaraChicken/DD/actions/runs/41421724645) with zero build warnings and a successful smoke-test result.
+
+Important boundary: this library is a tested foundation, **not yet wired into the legacy Game.Server/Bussiness code**. The legacy services still use SqlClient and SQL Server stored procedures. The next integration work depends on the account/character procedure definitions and a reviewed reference-data allowlist; do not treat the current server as SQL-free yet.
+
 ## Release and data safety
 
 - Never include `.BAK`, `.mdf`, `.ldf`, `.ndf`, credentials, or restored user data in release artifacts.
