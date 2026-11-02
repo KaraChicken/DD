@@ -151,7 +151,7 @@ Important boundary: this library is a tested foundation, **not yet wired into th
 
 The SQLite connection registers a custom `SQL_Latin1_General_CP1_CI_AS` collation using .NET `en-US` comparison with case ignored and accents retained. This is an intentional compatibility approximation, not a claim of byte-for-byte equivalence with SQL Server's collation for every Unicode character. It needs additional tests for the nickname character sets used by the client.
 
-The repository does not yet implement the legacy handler's locale-dependent `Encoding.Default.GetByteCount(nickname) <= 14` rule or its file-based illegal-character list. Those checks belong in the replacement `VisualizeRegister.ashx`-compatible HTTP endpoint and must be ported before switching the Flash client to it. The repository is not yet wired into `WebModern` or the legacy Game.Server; old runtime services still use SqlClient.
+The repository does not yet implement the legacy handler's locale-dependent `Encoding.Default.GetByteCount(nickname) <= 14` rule or its file-based illegal-character list. Those checks belong in the replacement `VisualizeRegister.ashx`-compatible HTTP endpoint and must be ported before switching the Flash client to it. `WebModern` now initializes this SQLite database under `%LOCALAPPDATA%\\DDTank\\data`, imports the bundled reference seed, exposes readiness health checks, and provides `POST /api/v1/accounts/register` using ASP.NET Core password hashing. That registration endpoint creates only an account row; it does not create a player or ask for gender/nickname. The Flash-compatible `VisualizeRegister.ashx` and login/game-ticket endpoints are not yet wired, and the legacy Game.Server still uses SqlClient.
 
 ## Release and data safety
 
