@@ -88,7 +88,7 @@ This is a much narrower and more actionable first migration slice than attemptin
 
 ## CI inspection artifact
 
-The initial schema inventory passed in [workflow run 41420505591](https://github.com/KaraChicken/DD/actions/runs/41420505591). The expanded inspection, including selected account/character stored-procedure definitions and per-table row counts, passed in [workflow run 41422595213](https://github.com/KaraChicken/DD/actions/runs/41422595213). Download the latest [ddtank-database-metadata-inventory artifact](https://github.com/KaraChicken/DD/actions/runs/41422595213/artifacts/13129654918) (seven-day retention). It contains schema metadata, row counts, and selected procedure source code only; no table rows, credentials, restored database files, or backups. Re-run the workflow to regenerate it.
+The initial schema inventory passed in [workflow run 41420505591](https://github.com/KaraChicken/DD/actions/runs/41420505591). The expanded inspection, including selected account/character stored-procedure definitions, per-table row counts, and a filtered SQLite seed, passed in [workflow run 41423542854](https://github.com/KaraChicken/DD/actions/runs/41423542854). Artifacts (seven-day retention): [schema/procedure inventory](https://github.com/KaraChicken/DD/actions/runs/41423542854/artifacts/13130568443) and [character-reference SQLite seed](https://github.com/KaraChicken/DD/actions/runs/41423542854/artifacts/13130368921). The seed contains 10,427 `ShopGoods` rows and zero `BagInit` rows; its SQLite integrity check passed. No account/player rows, credentials, or restored SQL Server database files are included. Re-run the workflow to regenerate these artifacts.
 
 ## Target architecture
 
