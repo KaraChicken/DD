@@ -15,6 +15,7 @@ namespace DDTank.LocalData
     {
         private readonly string _databasePath;
 
+        /// <summary>Creates a database owner for the supplied local file path.</summary>
         public LocalSqliteDatabase(string databasePath)
         {
             if (string.IsNullOrWhiteSpace(databasePath))
@@ -23,8 +24,10 @@ namespace DDTank.LocalData
             _databasePath = Path.GetFullPath(databasePath);
         }
 
+        /// <summary>Gets the absolute path of the local SQLite file.</summary>
         public string DatabasePath => _databasePath;
 
+        /// <summary>Gets the default per-user database path for the portable edition.</summary>
         public static string GetDefaultDatabasePath()
         {
             var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
