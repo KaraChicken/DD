@@ -13,6 +13,7 @@ import pathlib
 import subprocess
 import sys
 import time
+import xml.etree.ElementTree as ET
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 BACKUPS = [
@@ -112,6 +113,28 @@ def build_character_reference_seed(db_tank41: str, db_tank: str) -> dict:
     if not shop_rows:
         raise RuntimeError("The Db_Tank Shop_Goods reference table is empty; cannot build character seed.")
 
+    # The compiled VisualizeRegister handler reads these defaults from Request/Web.config.
+    config_root = ET.parse(ROOT / "Request" / "Web.config").getroot()
+    app_settings = {
+        item.attrib.get("key"): item.attrib.get("value", "")
+        for item in config_root.findall(".//appSettings/add")
+    }
+
+    def parse_default_appearance(key: str) -> list[int]:
+        configured = app_settings.get(key, "")
+        first_group = configured.split(";", 1)[0]
+        values = [int(value.strip()) for value in first_group.split(",") if value.strip()]
+        if len(values) != 5:
+            raise RuntimeError(f"{key} must define five default appearance template IDs in its first group.")
+        return values
+
+    boy_defaults = parse_default_appearance("BoyVisualizeItem")
+    girl_defaults = parse_default_appearance("GrilVisualizeItem")
+    available_template_ids = {int(row["TemplateID"]) for row in shop_rows}
+    missing_defaults = sorted(set(boy_defaults + girl_defaults) - available_template_ids)
+    if missing_defaults:
+        raise RuntimeError(f"Configured character appearance templates are missing from Db_Tank.Shop_Goods: {missing_defaults}")
+
     seed_path = REPORT / "character-reference-seed.sqlite3"
     if seed_path.exists():
         seed_path.unlink()
@@ -128,6 +151,16 @@ def build_character_reference_seed(db_tank41: str, db_tank: str) -> dict:
             Defence INTEGER NOT NULL,
             Agility INTEGER NOT NULL,
             Luck INTEGER NOT NULL
+        );
+        """)
+        connection.execute("""
+        CREATE TABLE CharacterDefaults (
+            Sex INTEGER NOT NULL PRIMARY KEY,
+            ArmTemplateId INTEGER NOT NULL,
+            HairTemplateId INTEGER NOT NULL,
+            FaceTemplateId INTEGER NOT NULL,
+            ClothTemplateId INTEGER NOT NULL,
+            HatTemplateId INTEGER NOT NULL
         );
         """)
         connection.execute("""
@@ -159,6 +192,13 @@ def build_character_reference_seed(db_tank41: str, db_tank: str) -> dict:
             ],
         )
         connection.executemany(
+            "INSERT INTO CharacterDefaults VALUES (?, ?, ?, ?, ?, ?);",
+            [
+                (1, *boy_defaults),
+                (0, *girl_defaults),
+            ],
+        )
+        connection.executemany(
             "INSERT INTO BagInit VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);",
             [
                 (
@@ -171,7 +211,7 @@ def build_character_reference_seed(db_tank41: str, db_tank: str) -> dict:
                 for row in bag_rows
             ],
         )
-        connection.execute("PRAGMA user_version = 1;")
+        connection.execute("PRAGMA user_version = 2;")
         integrity = connection.execute("PRAGMA integrity_check;").fetchone()[0]
         if integrity != "ok":
             raise RuntimeError(f"Character reference seed failed SQLite integrity_check: {integrity}")
@@ -181,8 +221,9 @@ def build_character_reference_seed(db_tank41: str, db_tank: str) -> dict:
         "file": seed_path.name,
         "size_bytes": seed_path.stat().st_size,
         "sha256": digest,
-        "schema_version": 1,
-        "table_rows": {"ShopGoods": len(shop_rows), "BagInit": len(bag_rows)},
+        "schema_version": 2,
+        "table_rows": {"ShopGoods": len(shop_rows), "BagInit": len(bag_rows), "CharacterDefaults": 2},
+        "default_appearance_ids": {"boy": boy_defaults, "girl": girl_defaults},
         "source": {
             "ShopGoods": "Db_Tank_20200702.BAK / dbo.Shop_Goods",
             "BagInit": "Db_Tank41.BAK / dbo.Bag_Init",
