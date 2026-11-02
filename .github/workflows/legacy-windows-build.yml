@@ -182,6 +182,30 @@ jobs:
             if (-not $ready) {
               throw "Published portable web host did not become ready with its bundled SQLite seed."
             }
+
+            $body = @{
+              userName = "Portable.Smoke"
+              password = "PortableSmokePassword-2026"
+              email = "portable.smoke@example.invalid"
+            } | ConvertTo-Json
+            $account = Invoke-RestMethod -Uri "http://127.0.0.1:5080/api/v1/accounts/register" -Method Post -ContentType "application/json" -Body $body -TimeoutSec 5
+            if ($account.accountId -le 0 -or $account.userName -ne "Portable.Smoke") {
+              throw "Account-only registration did not return the created account."
+            }
+
+            $duplicateBody = @{
+              userName = "portable.smoke"
+              password = "AnotherPortablePassword-2026"
+            } | ConvertTo-Json
+            try {
+              Invoke-RestMethod -Uri "http://127.0.0.1:5080/api/v1/accounts/register" -Method Post -ContentType "application/json" -Body $duplicateBody -TimeoutSec 5 | Out-Null
+              throw "Case-insensitive duplicate account registration was accepted."
+            }
+            catch {
+              if ($_.Exception.Response.StatusCode.value__ -ne 409) {
+                throw
+              }
+            }
           }
           finally {
             if ($process -and -not $process.HasExited) {
