@@ -33,7 +33,7 @@
 
 ## Important constraints
 - The first workflow is a build-validation baseline, not a finished game EXE.
-- Do not replace SQL Server with SQLite until stored procedures, schema, transactions, and provider dependencies have been inventoried.
+- The initial MSSQL backup/schema inventory and a filtered SQLite character-reference seed are documented in `docs/DATABASE-MIGRATION-PLAN.md`. Full runtime procedure/call-path coverage is still in progress; do not replace the SQL Server provider wholesale until each retained gameplay flow has a tested SQLite implementation.
 - Do not assume a SWF will run in a modern browser or Ruffle without testing.
 - Keep user data outside the application folder. Do not include database backups, secrets, or developer-specific paths in releases.
 
