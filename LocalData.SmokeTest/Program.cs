@@ -95,8 +95,15 @@ CREATE TABLE ""SmokeTest"" (
     var backup = new LocalSqliteDatabase(backupPath);
     if (!backup.VerifyIntegrity())
         throw new InvalidOperationException("The standalone backup failed PRAGMA integrity_check.");
+    using (var backupConnection = backup.OpenConnection())
+    using (var backupCommand = backupConnection.CreateCommand())
+    {
+        backupCommand.CommandText = "SELECT COUNT(*) FROM ShopGoods;";
+        if (Convert.ToInt32(backupCommand.ExecuteScalar()) != 1)
+            throw new InvalidOperationException("The standalone backup did not retain imported reference data.");
+    }
 
-    Console.WriteLine("PASS: initialization, transactional migrations, persistence, integrity check, and backup.");
+    Console.WriteLine("PASS: initialization, reference seed import, transactional migrations, persistence, integrity check, and backup.");
 }
 finally
 {
