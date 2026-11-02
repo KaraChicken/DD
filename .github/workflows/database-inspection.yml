@@ -10,6 +10,8 @@ on:
       - "Source Server/SqlDataProvider/**"
       - "Source Server/Bussiness/**"
       - "scripts/db-inspection/**"
+      - "LocalData/**"
+      - "LocalData.SmokeTest/**"
       - ".github/workflows/database-inspection.yml"
 
 permissions:
