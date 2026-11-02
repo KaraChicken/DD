@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """Restore SQL Server backups in an ephemeral CI container and export metadata only.
 
-No table rows, credentials, backup files, or database files are uploaded as artifacts.
+Only reviewed reference/configuration rows are exported to a filtered SQLite seed. No account/player rows, credentials, or restored SQL Server database files are uploaded.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
+import sqlite3
 import pathlib
 import subprocess
 import sys
@@ -64,6 +66,15 @@ def rows(output: str) -> list[list[str]]:
     return parsed
 
 
+def json_query(query: str) -> list[dict]:
+    output = sql(query, unlimited=True)
+    lines = [line.strip() for line in output.splitlines() if line.strip()]
+    json_start = next((index for index, line in enumerate(lines) if line.startswith("[")), None)
+    if json_start is None:
+        return []
+    return json.loads("".join(lines[json_start:]))
+
+
 def selected_procedure_definitions(db_name: str, names: list[str]) -> list[dict]:
     if not names:
         return []
@@ -77,14 +88,108 @@ def selected_procedure_definitions(db_name: str, names: list[str]) -> list[dict]
     ORDER BY p.name
     FOR JSON PATH;
     """
-    output = sql(query, unlimited=True)
-    lines = [line.strip() for line in output.splitlines() if line.strip()]
-    # sqlcmd prints a JSON column header and separator when -h cannot be used.
-    json_start = next((index for index, line in enumerate(lines) if line.startswith("[")), None)
-    if json_start is None:
-        return []
-    payload = "".join(lines[json_start:])
-    return json.loads(payload)
+    return json_query(query)
+
+
+def build_character_reference_seed(db_tank41: str, db_tank: str) -> dict:
+    # These are the exact static tables referenced by SP_Users_RegisterNotValidate.
+    # No account/player tables are read or copied.
+    shop_rows = json_query(f"""
+    SET NOCOUNT ON;
+    SELECT TemplateID, Pic, CategoryID, MaxCount, Attack, Defence, Agility, Luck
+    FROM [{db_tank}].dbo.Shop_Goods
+    ORDER BY TemplateID
+    FOR JSON PATH;
+    """)
+    bag_rows = json_query(f"""
+    SET NOCOUNT ON;
+    SELECT ID, Sex, TemplateID, [Count] AS ItemCount, ValidDate, StrengthenLevel,
+           AttackCompose, DefendCompose, LuckCompose, AgilityCompose, IsBinds, BagType, Place
+    FROM [{db_tank41}].dbo.Bag_Init
+    ORDER BY ID
+    FOR JSON PATH;
+    """)
+    if not shop_rows:
+        raise RuntimeError("The Db_Tank Shop_Goods reference table is empty; cannot build character seed.")
+
+    seed_path = REPORT / "character-reference-seed.sqlite3"
+    if seed_path.exists():
+        seed_path.unlink()
+
+    with sqlite3.connect(seed_path) as connection:
+        connection.execute("PRAGMA foreign_keys = ON;")
+        connection.execute("""
+        CREATE TABLE ShopGoods (
+            TemplateId INTEGER NOT NULL PRIMARY KEY,
+            Picture TEXT NULL,
+            CategoryId INTEGER NOT NULL,
+            MaxStack INTEGER NOT NULL,
+            Attack INTEGER NOT NULL,
+            Defence INTEGER NOT NULL,
+            Agility INTEGER NOT NULL,
+            Luck INTEGER NOT NULL
+        );
+        """)
+        connection.execute("""
+        CREATE TABLE BagInit (
+            Id INTEGER NOT NULL PRIMARY KEY,
+            Sex INTEGER NOT NULL,
+            TemplateId INTEGER NOT NULL,
+            ItemCount INTEGER NOT NULL,
+            ValidDate INTEGER NOT NULL,
+            StrengthenLevel INTEGER NOT NULL,
+            AttackCompose INTEGER NOT NULL,
+            DefendCompose INTEGER NOT NULL,
+            LuckCompose INTEGER NOT NULL,
+            AgilityCompose INTEGER NOT NULL,
+            IsBinds INTEGER NOT NULL,
+            BagType INTEGER NOT NULL,
+            Place INTEGER NOT NULL
+        );
+        """)
+        connection.executemany(
+            "INSERT INTO ShopGoods VALUES (?, ?, ?, ?, ?, ?, ?, ?);",
+            [
+                (
+                    int(row["TemplateID"]), row.get("Pic"), int(row["CategoryID"]),
+                    int(row["MaxCount"]), int(row["Attack"]), int(row["Defence"]),
+                    int(row["Agility"]), int(row["Luck"]),
+                )
+                for row in shop_rows
+            ],
+        )
+        connection.executemany(
+            "INSERT INTO BagInit VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);",
+            [
+                (
+                    int(row["ID"]), int(row["Sex"]), int(row["TemplateID"]),
+                    int(row["ItemCount"]), int(row["ValidDate"]), int(row["StrengthenLevel"]),
+                    int(row["AttackCompose"]), int(row["DefendCompose"]), int(row["LuckCompose"]),
+                    int(row["AgilityCompose"]), int(bool(row["IsBinds"])),
+                    int(row["BagType"]), int(row["Place"]),
+                )
+                for row in bag_rows
+            ],
+        )
+        connection.execute("PRAGMA user_version = 1;")
+        integrity = connection.execute("PRAGMA integrity_check;").fetchone()[0]
+        if integrity != "ok":
+            raise RuntimeError(f"Character reference seed failed SQLite integrity_check: {integrity}")
+
+    digest = hashlib.sha256(seed_path.read_bytes()).hexdigest()
+    return {
+        "file": seed_path.name,
+        "size_bytes": seed_path.stat().st_size,
+        "sha256": digest,
+        "schema_version": 1,
+        "table_rows": {"ShopGoods": len(shop_rows), "BagInit": len(bag_rows)},
+        "source": {
+            "ShopGoods": "Db_Tank_20200702.BAK / dbo.Shop_Goods",
+            "BagInit": "Db_Tank41.BAK / dbo.Bag_Init",
+        },
+        "integrity_check": "ok",
+        "scope": "Filtered character-creation reference data only; no account/player rows.",
+    }
 
 
 def inspect_backup(backup: pathlib.Path, index: int) -> dict:
@@ -241,9 +346,11 @@ def main() -> None:
     for index, backup in enumerate(BACKUPS, start=1):
         print(f"Inspecting {backup.name} ({backup.stat().st_size} bytes)", flush=True)
         results.append(inspect_backup(backup, index))
+    seed = build_character_reference_seed("DDTankBackupInspect2", "DDTankBackupInspect3")
     report = {
-        "disclaimer": "Schema metadata and selected stored procedure definitions only. No table rows, credentials, backup files, or database files were exported.",
+        "disclaimer": "Schema metadata, selected stored procedure definitions, and a filtered SQLite reference seed only. No account/player rows, credentials, or restored SQL Server database files were exported.",
         "backups": results,
+        "character_reference_seed": seed,
         "static_provider_audit": static_provider_audit(),
     }
     (REPORT / "database-inventory.json").write_text(
