@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.RegularExpressions;
+using System.Xml.Linq;
 using DDTank.LocalData;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Data.Sqlite;
@@ -23,6 +24,7 @@ builder.Services.AddSingleton(localDatabase);
 builder.Services.AddSingleton(localDatabase.Database);
 builder.Services.AddSingleton(localDatabase.Characters);
 builder.Services.AddSingleton<IPasswordHasher<string>, PasswordHasher<string>>();
+builder.Services.AddSingleton<NicknamePolicy>();
 builder.Services.AddProblemDetails();
 builder.Services.AddRazorPages();
 builder.Services.AddHealthChecks()
@@ -99,11 +101,73 @@ app.MapPost("/api/v1/accounts/register", (
     }
 });
 app.MapRazorPages();
+app.MapMethods("/VisualizeRegister.ashx", new[] { "GET", "POST" }, HandleVisualizeRegisterAsync);
+app.MapMethods("/Request/VisualizeRegister.ashx", new[] { "GET", "POST" }, HandleVisualizeRegisterAsync);
 
 var localOptions = app.Services.GetRequiredService<
     Microsoft.Extensions.Options.IOptions<LocalWebOptions>>().Value;
 app.Urls.Add(localOptions.BaseUrl);
 
 app.Run();
+
+static async Task<IResult> HandleVisualizeRegisterAsync(
+    HttpRequest request,
+    CharacterCreationRepository characters,
+    IPasswordHasher<string> passwordHasher,
+    NicknamePolicy nicknamePolicy,
+    IConfiguration configuration)
+{
+    var form = request.HasFormContentType ? await request.ReadFormAsync() : null;
+    string ReadValue(string key)
+    {
+        var formValue = form?[key].ToString();
+        return !string.IsNullOrEmpty(formValue) ? formValue : request.Query[key].ToString();
+    }
+
+    var userName = ReadValue("Name").Trim();
+    var password = ReadValue("Pass");
+    var nickname = ReadValue("NickName");
+
+    var account = characters.FindAccountByUserName(userName);
+    if (account == null || !account.IsActive || string.IsNullOrEmpty(password))
+        return VisualizeRegisterResponse(false, "UserName or Password incorrect.");
+
+    var verification = passwordHasher.VerifyHashedPassword(account.UserName, account.PasswordHash, password);
+    if (verification == PasswordVerificationResult.Failed)
+        return VisualizeRegisterResponse(false, "UserName or Password incorrect.");
+
+    var validation = nicknamePolicy.Validate(nickname);
+    if (!validation.IsValid)
+        return VisualizeRegisterResponse(false, validation.ErrorMessage ?? "Invalid nickname.");
+
+    int? requestedSex = null;
+    if (configuration.GetValue("CharacterCreation:MustChooseSex", true))
+    {
+        if (!bool.TryParse(ReadValue("Sex"), out var isMale))
+            return VisualizeRegisterResponse(false, "A valid sex selection is required.");
+        requestedSex = isMale ? 1 : 0;
+    }
+
+    var styleDate = configuration.GetValue("CharacterCreation:ValidDate", 3);
+    var result = characters.CompleteCharacterCreation(
+        account.AccountId, validation.Nickname, requestedSex, styleDate);
+
+    return result.ResultCode switch
+    {
+        0 => VisualizeRegisterResponse(true, string.Empty),
+        2 => VisualizeRegisterResponse(false, "Nickname already exists."),
+        3 => VisualizeRegisterResponse(false, "Character is not awaiting creation."),
+        _ => VisualizeRegisterResponse(false, "Character creation failed.")
+    };
+}
+
+static IResult VisualizeRegisterResponse(bool success, string message)
+{
+    var xml = new XElement(
+        "Result",
+        new XAttribute("value", success ? "true" : "false"),
+        new XAttribute("message", message));
+    return Results.Content(xml.ToString(SaveOptions.DisableFormatting), "text/xml; charset=utf-8");
+}
 
 public sealed record AccountRegistrationRequest(string? UserName, string? Password, string? Email);
