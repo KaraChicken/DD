@@ -31,6 +31,18 @@
 5. **Incremental migration:** introduce seams around persistence, networking, timers, and game services; add protocol and game-rule tests before replacing implementations.
 6. **Portable release:** package versioned win-x64 files with checksums; test clean-machine startup, save persistence, backup/restore, and shutdown.
 
+## Verified cloud-build checkpoint (2026-11-02)
+
+The workflow passed all four jobs in [run 41426474537](https://github.com/KaraChicken/DD/actions/runs/41426474537):
+- Legacy .NET Framework solution compiles in Release.
+- The MSSQL backups are restored only inside an ephemeral CI SQL Server container; the filtered SQLite seed is generated and validated.
+- The LocalData smoke test imports the actual seed, creates pending players, completes male and female first-character flows, checks nickname uniqueness, and verifies backup persistence.
+- The self-contained win-x64 ASP.NET Core host starts with the bundled seed; its SQLite readiness endpoint reports healthy.
+
+Artifacts (14-day retention): [SQLite-backed web host, win-x64](https://github.com/KaraChicken/DD/actions/runs/41426474537/artifacts/13133020064) (47.4 MB), [character-reference seed](https://github.com/KaraChicken/DD/actions/runs/41426474537/artifacts/13132306975), and [legacy Release build outputs](https://github.com/KaraChicken/DD/actions/runs/41426474537/artifacts/13132152520).
+
+This is a verified database/web-host milestone, not the finished game package. The old Game.Server, Center, and Fighting runtime still uses SqlClient/SQL Server; the Flash-compatible login and `VisualizeRegister.ashx` endpoints are not yet wired to the new SQLite repository, and the SWF/Ruffle compatibility work remains outstanding. The current web-host artifact must not be presented as a playable game.
+
 ## Important constraints
 - The first workflow is a build-validation baseline, not a finished game EXE.
 - The initial MSSQL backup/schema inventory and a filtered SQLite character-reference seed are documented in `docs/DATABASE-MIGRATION-PLAN.md`. Full runtime procedure/call-path coverage is still in progress; do not replace the SQL Server provider wholesale until each retained gameplay flow has a tested SQLite implementation.
