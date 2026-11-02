@@ -64,11 +64,18 @@ The second metadata pass also recorded per-table row counts (counts only, no val
 
 This confirms that at least two backups contain historical account/player-associated records. They are explicitly excluded from the portable seed database: the product is a fresh single-player rebuild and does not need those identities or saves. Only reviewed schema and allowlisted static game configuration/reference rows may be migrated. The three backups must remain private migration inputs and must not be included in player downloads.
 
-## Flash login trace status (partial; creation UI not yet located)
+## First-character creation flow: server endpoint traced
 
-The ActionScript login flow confirms that `SelectListManager.setup` marks an account as a newbie when the returned role list is empty. `LoginStateView` posts the encrypted account payload to `Login.ashx`. Its `ChooseRoleFrame` is an existing-role selector, and `RoleRenameFrame` is a rename flow that calls `NickNameCheck.ashx` and `RenameNick.ashx`; neither is the gender/nickname first-character creation UI described for the portable edition.
+The checked-in server code now identifies the exact HTTP endpoint used by the Flash-side first-character flow:
 
-Therefore the precise Flash creation screen and its request endpoint/packet handler are still unverified in the checked-in ActionScript. The server-side `PlayerBussiness.RegisterPlayer` / `SP_Users_RegisterNotValidate` contract is a strong candidate, but it must not be wired into the new SQLite path until the actual Flash request is traced. The original role creation UX remains unchanged as a requirement.
+1. `Login.ashx` decrypts the Flash login payload and calls `BaseInterface.CreateLogin`.
+2. `BaseInterface.CreateLogin` calls `PlayerBussiness.LoginGame`. If no game-side player row exists, it calls `PlayerBussiness.ActivePlayer`, which invokes `SP_Users_Active` to create a pending player with an empty nickname and related fight/VIP/experience/daily-log rows.
+3. `LoginSelectList.ashx` returns only player rows with a non-empty nickname. The Flash `SelectListManager.setup` marks the account as a newbie when this role list is empty.
+4. The server-side first-character creation endpoint is `VisualizeRegister.ashx` (`Tank.Request.VisualizeRegister`). It reads `Name`, `Pass`, `NickName`, and `Sex`; validates nickname byte length and illegal characters; selects gender-specific default appearance IDs from `BoyVisualizeItem` / `GrilVisualizeItem`; then calls `PlayerBussiness.RegisterPlayer`.
+5. `PlayerBussiness.RegisterPlayer` invokes `SP_Users_RegisterNotValidate`, which performs the nickname uniqueness check, loads appearance and starter-item definitions, creates initial equipment/inventory, and updates nickname, sex, style, colors, and fight attributes in one transaction.
+6. The regular `Login.ashx` response then returns the populated `PlayerInfo` to Flash.
+
+The checked-in ActionScript confirms the empty-role/newbie decision and existing-role selector. The exact ActionScript caller for `VisualizeRegister.ashx` has not yet been found in the source tree, but the endpoint contract and C# persistence path are now verified. Preserve this flow: website registration creates the account identity; Flash owns the gender/nickname screen; `VisualizeRegister.ashx` / the game-side business layer owns first-character creation. Do not move that UI into ASP.NET Core.
 
 The source also references `Check_User`, `SP_CheckAccount`, and `SP_Account_Register`, but none of those procedure names exists in any of the three supplied backups. They appear to be stale/alternate paths or dependencies from an absent database/version. The migration must not recreate them from guesses; trace whether they are actually called in the active login/creation flow. Conversely, `Mem_Code_Sto` is present and is called by `Mem_Users_CreateUser` to generate account IDs, so its definition is included in the expanded inspection.
 
