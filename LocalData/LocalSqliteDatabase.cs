@@ -111,7 +111,7 @@ CREATE TABLE IF NOT EXISTS ""__SchemaMigrations"" (
                 using (var check = connection.CreateCommand())
                 {
                     check.Transaction = transaction;
-                    check.CommandText = "SELECT 1 FROM ""__SchemaMigrations"" WHERE ""Version"" = $version LIMIT 1;";
+                    check.CommandText = @"SELECT 1 FROM ""__SchemaMigrations"" WHERE ""Version"" = $version LIMIT 1;";
                     check.Parameters.AddWithValue("$version", version);
                     if (check.ExecuteScalar() != null)
                     {
