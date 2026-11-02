@@ -112,7 +112,7 @@ CREATE TABLE IF NOT EXISTS PlayerInventory (
     ValidDate INTEGER NOT NULL,
     IsUsed INTEGER NOT NULL,
     UNIQUE(PlayerId, BagType, Place)
- );
+);");
             _database.ApplyMigration(101, "ALTER TABLE Players ADD COLUMN IsExist INTEGER NOT NULL DEFAULT 1;");
         }
 
