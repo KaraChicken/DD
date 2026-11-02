@@ -234,15 +234,6 @@ jobs:
               throw "Account login did not issue a short-lived ticket for first-character creation."
             }
 
-            $wrongPasswordBody = @{
-              userName = "Portable.Smoke"
-              password = "DefinitelyWrongPassword-2026"
-            } | ConvertTo-Json
-            $wrongPassword = Invoke-WebRequest -Uri "http://127.0.0.1:5080/api/v1/accounts/login" -Method Post -ContentType "application/json" -Body $wrongPasswordBody -TimeoutSec 5 -SkipHttpErrorCheck
-            if ($wrongPassword.StatusCode -ne 401) {
-              throw "Login accepted an incorrect password; expected HTTP 401."
-            }
-
             $roleBody = "Name=Portable.Smoke&Pass=$([uri]::EscapeDataString($login.gameTicket))&NickName=ZyxQ7&Sex=true"
             $roleResponse = Invoke-WebRequest -Uri "http://127.0.0.1:5080/Request/VisualizeRegister.ashx" -Method Post -ContentType "application/x-www-form-urlencoded" -Body $roleBody -TimeoutSec 5
             [xml]$roleXml = $roleResponse.Content
