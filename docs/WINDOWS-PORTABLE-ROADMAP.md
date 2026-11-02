@@ -11,6 +11,18 @@
 - The solution contains multiple libraries and services; it is not yet a single launcher executable.
 - SQL Server backup files exist in the repository and must be excluded from release packages pending data and licensing review.
 
+
+## Web replacement and account/character boundary
+
+- Replace the legacy PHP website with ASP.NET Core; PHP is a reference for existing behavior and assets, not a runtime dependency for the rebuilt edition.
+- Website account registration creates only an account identity and authentication credentials. It must not ask for character gender or nickname.
+- First-time character creation remains an in-game flow owned by the Flash client: after login, the client detects that the account has no character and presents the gender/nickname creation UI.
+- The Flash client submits the character-creation request through the existing game protocol to the C# game server. The server validates the authenticated account, validates gender/nickname and uniqueness rules, creates the character, and returns success/failure.
+- ASP.NET Core is responsible for account authentication and issuing a short-lived game-launch ticket. The C# game server validates that ticket and remains authoritative for character creation and game state.
+- Do not add a parallel character-creation form or direct character-table writes to the website.
+- Before changing the Flash flow, trace the current SWF screens, request/response packet types, server handlers, and character persistence path. Preserve the established protocol unless a tested protocol migration is explicitly planned.
+- Since this is a fresh rebuild with no player/account data to preserve, design new account credential storage securely; do not carry over legacy MD5 or PHP session serialization.
+
 ## Milestones
 1. **Cloud build baseline:** compile the unchanged legacy solution on a Windows GitHub Actions runner and capture failures.
 2. **Portable launcher:** add a self-contained win-x64 Windows launcher; store saves, logs, settings, and backups under `%LOCALAPPDATA%/DDTank`.
