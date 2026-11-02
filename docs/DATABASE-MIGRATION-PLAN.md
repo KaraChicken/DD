@@ -86,7 +86,7 @@ This is a much narrower and more actionable first migration slice than attemptin
 
 ## CI inspection artifact
 
-The successful first run is [workflow run 41420505591](https://github.com/KaraChicken/DD/actions/runs/41420505591). Its metadata-only artifact is [ddtank-database-metadata-inventory](https://github.com/KaraChicken/DD/actions/runs/41420505591) (seven-day retention). Re-run the workflow to regenerate it; never commit restored database files or user data.
+The initial schema inventory passed in [workflow run 41420505591](https://github.com/KaraChicken/DD/actions/runs/41420505591). The expanded inspection, including selected account/character stored-procedure definitions and per-table row counts, passed in [workflow run 41422595213](https://github.com/KaraChicken/DD/actions/runs/41422595213). Download the latest [ddtank-database-metadata-inventory artifact](https://github.com/KaraChicken/DD/actions/runs/41422595213/artifacts/13129654918) (seven-day retention). It contains schema metadata, row counts, and selected procedure source code only; no table rows, credentials, restored database files, or backups. Re-run the workflow to regenerate it.
 
 ## Target architecture
 
