@@ -143,7 +143,14 @@ PRAGMA user_version = 2;";
     using (var characterConnection = database.OpenConnection())
     using (var characterCommand = characterConnection.CreateCommand())
     {
+        characterCommand.CommandText = "SELECT IsExist FROM Players WHERE PlayerId = $playerId;";
+        characterCommand.Parameters.AddWithValue("$playerId", firstPlayerId);
+        if (Convert.ToInt32(characterCommand.ExecuteScalar()) != 1)
+            throw new InvalidOperationException("The pending player did not preserve the legacy IsExist flag.");
+
+        characterCommand.Parameters.Clear();
         characterCommand.CommandText = "SELECT COUNT(*) FROM PlayerInventory WHERE PlayerId = $playerId;";
+        characterCommand.Parameters.AddWithValue("$playerId", firstPlayerId);
         characterCommand.Parameters.AddWithValue("$playerId", firstPlayerId);
         if (Convert.ToInt32(characterCommand.ExecuteScalar()) != 5)
             throw new InvalidOperationException("The first character did not receive the five configured appearance items.");
