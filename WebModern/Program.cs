@@ -21,7 +21,7 @@ app.UseExceptionHandler();
 app.Use(async (context, next) =>
 {
     context.Response.Headers.XContentTypeOptions = "nosniff";
-    context.Response.Headers.ReferrerPolicy = "no-referrer";
+    context.Response.Headers["Referrer-Policy"] = "no-referrer";
     context.Response.Headers.XFrameOptions = "SAMEORIGIN";
     await next();
 });
