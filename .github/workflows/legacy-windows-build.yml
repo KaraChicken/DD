@@ -61,20 +61,20 @@ jobs:
           PASSWORD="$(python3 -c 'import secrets; print("Aa9!" + secrets.token_urlsafe(24) + "Z7#")')"
           echo "::add-mask::$PASSWORD"
           echo "MSSQL_SA_PASSWORD=$PASSWORD" >> "$GITHUB_ENV"
-          docker run --name ddtank-sqlserver-seed \
+          docker run --name ddtank-sqlserver-inspect \
             -e ACCEPT_EULA=Y \
             -e MSSQL_PID=Developer \
             -e MSSQL_SA_PASSWORD="$PASSWORD" \
             -p 1433:1433 -d mcr.microsoft.com/mssql/server:2022-latest
 
           for attempt in $(seq 1 60); do
-            if docker exec ddtank-sqlserver-seed \
+            if docker exec ddtank-sqlserver-inspect \
               /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$PASSWORD" -C -Q "SELECT 1" >/dev/null 2>&1; then
               exit 0
             fi
             sleep 5
           done
-          docker logs ddtank-sqlserver-seed
+          docker logs ddtank-sqlserver-inspect
           exit 1
 
       - name: Restore backups and build filtered SQLite seed
@@ -99,7 +99,7 @@ jobs:
 
       - name: Remove ephemeral SQL Server
         if: always()
-        run: docker rm -f ddtank-sqlserver-seed || true
+        run: docker rm -f ddtank-sqlserver-inspect || true
 
   build-localdata:
     name: Build and test embedded SQLite foundation
