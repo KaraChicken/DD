@@ -50,12 +50,6 @@
     <Compile Include="action\ConsoleStart.cs" />
   </ItemGroup>
   <ItemGroup>
-    <Analyzer Include="..\Fighting.Server\bin\Debug\Fighting.Server.dll" />
-    <Analyzer Include="..\Game.Base\bin\Debug\Game.Base.dll" />
-    <Analyzer Include="..\Game.Base\bin\Debug\log4net.dll" />
-    <Analyzer Include="..\Game.Logic\bin\Debug\Game.Logic.dll" />
-  </ItemGroup>
-  <ItemGroup>
     <Content Include="icon_1_.ico" />
     <Content Include="p1.ico" />
   </ItemGroup>
