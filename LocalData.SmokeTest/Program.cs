@@ -25,10 +25,10 @@ CREATE TABLE ""SmokeTest"" (
     using (var connection = database.OpenConnection())
     using (var command = connection.CreateCommand())
     {
-        command.CommandText = "INSERT INTO ""SmokeTest"" (""Id"", ""Value"") VALUES (1, 'portable-ok');";
+        command.CommandText = @"INSERT INTO ""SmokeTest"" (""Id"", ""Value"") VALUES (1, 'portable-ok');";
         command.ExecuteNonQuery();
 
-        command.CommandText = "SELECT ""Value"" FROM ""SmokeTest"" WHERE ""Id"" = 1;";
+        command.CommandText = @"SELECT ""Value"" FROM ""SmokeTest"" WHERE ""Id"" = 1;";
         if (!string.Equals(Convert.ToString(command.ExecuteScalar()), "portable-ok", StringComparison.Ordinal))
             throw new InvalidOperationException("SQLite did not persist the inserted value.");
     }
