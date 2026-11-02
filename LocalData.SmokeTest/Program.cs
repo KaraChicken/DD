@@ -38,6 +38,14 @@ CREATE TABLE ShopGoods (
     Agility INTEGER NOT NULL,
     Luck INTEGER NOT NULL
 );
+CREATE TABLE CharacterDefaults (
+    Sex INTEGER NOT NULL PRIMARY KEY,
+    ArmTemplateId INTEGER NOT NULL,
+    HairTemplateId INTEGER NOT NULL,
+    FaceTemplateId INTEGER NOT NULL,
+    ClothTemplateId INTEGER NOT NULL,
+    HatTemplateId INTEGER NOT NULL
+);
 CREATE TABLE BagInit (
     Id INTEGER NOT NULL PRIMARY KEY,
     Sex INTEGER NOT NULL,
@@ -54,7 +62,9 @@ CREATE TABLE BagInit (
     Place INTEGER NOT NULL
 );
 INSERT INTO ShopGoods VALUES (1001, 'smoke.png', 1, 99, 1, 2, 3, 4);
-PRAGMA user_version = 1;";
+INSERT INTO CharacterDefaults VALUES (1, 7008, 3158, 6103, 5160, 1142);
+INSERT INTO CharacterDefaults VALUES (0, 7008, 3244, 6204, 5276, 1214);
+PRAGMA user_version = 2;";
                 seedCommand.ExecuteNonQuery();
             }
         }
@@ -62,6 +72,7 @@ PRAGMA user_version = 1;";
 
     long expectedShopGoods;
     long expectedBagInit;
+    long expectedCharacterDefaults;
     var seedBuilderForRead = new SqliteConnectionStringBuilder
     {
         DataSource = seedPath,
@@ -74,7 +85,7 @@ PRAGMA user_version = 1;";
         using (var seedCommand = seedConnection.CreateCommand())
         {
             seedCommand.CommandText = "PRAGMA user_version;";
-            if (Convert.ToInt32(seedCommand.ExecuteScalar()) != 1)
+            if (Convert.ToInt32(seedCommand.ExecuteScalar()) != 2)
                 throw new InvalidOperationException("Unexpected character reference seed schema version.");
 
             seedCommand.CommandText = "SELECT COUNT(*) FROM ShopGoods;";
@@ -82,6 +93,9 @@ PRAGMA user_version = 1;";
 
             seedCommand.CommandText = "SELECT COUNT(*) FROM BagInit;";
             expectedBagInit = Convert.ToInt64(seedCommand.ExecuteScalar());
+
+            seedCommand.CommandText = "SELECT COUNT(*) FROM CharacterDefaults;";
+            expectedCharacterDefaults = Convert.ToInt64(seedCommand.ExecuteScalar());
         }
     }
 
@@ -101,6 +115,10 @@ PRAGMA user_version = 1;";
         referenceCommand.CommandText = "SELECT COUNT(*) FROM BagInit;";
         if (Convert.ToInt64(referenceCommand.ExecuteScalar()) != expectedBagInit)
             throw new InvalidOperationException("BagInit reference rows were not imported exactly.");
+
+        referenceCommand.CommandText = "SELECT COUNT(*) FROM CharacterDefaults;";
+        if (Convert.ToInt64(referenceCommand.ExecuteScalar()) != expectedCharacterDefaults)
+            throw new InvalidOperationException("CharacterDefaults rows were not imported exactly.");
     }
 
     var migrationApplied = database.ApplyMigration(1, @"
@@ -138,9 +156,13 @@ CREATE TABLE ""SmokeTest"" (
         backupCommand.CommandText = "SELECT COUNT(*) FROM ShopGoods;";
         if (Convert.ToInt64(backupCommand.ExecuteScalar()) != expectedShopGoods)
             throw new InvalidOperationException("The standalone backup did not retain imported reference data.");
+
+        backupCommand.CommandText = "SELECT COUNT(*) FROM CharacterDefaults;";
+        if (Convert.ToInt64(backupCommand.ExecuteScalar()) != expectedCharacterDefaults)
+            throw new InvalidOperationException("The standalone backup did not retain character defaults.");
     }
 
-    Console.WriteLine($"PASS: seed import ({expectedShopGoods} ShopGoods, {expectedBagInit} BagInit), transactional migrations, persistence, integrity check, and backup.");
+    Console.WriteLine($"PASS: seed import ({expectedShopGoods} ShopGoods, {expectedBagInit} BagInit, {expectedCharacterDefaults} CharacterDefaults), transactional migrations, persistence, integrity check, and backup.");
 }
 finally
 {
