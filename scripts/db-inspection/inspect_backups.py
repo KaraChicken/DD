@@ -80,10 +80,10 @@ def selected_procedure_definitions(db_name: str, names: list[str]) -> list[dict]
     output = sql(query, unlimited=True)
     lines = [line.strip() for line in output.splitlines() if line.strip()]
     # sqlcmd prints a JSON column header and separator when -h cannot be used.
-    payload_lines = [line for line in lines if not line.startswith("JSON_F52E2B61") and not set(line) <= {"-", " "}]
-    payload = "".join(payload_lines)
-    if not payload:
+    json_start = next((index for index, line in enumerate(lines) if line.startswith("[")), None)
+    if json_start is None:
         return []
+    payload = "".join(lines[json_start:])
     return json.loads(payload)
 
 
