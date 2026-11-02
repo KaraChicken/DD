@@ -25,6 +25,30 @@ The `Database backup inspection` GitHub Actions workflow restores each backup in
 
 It must not export table rows, user credentials, or restored database files. The SQL Server container and its data are deleted at the end of the job. The inventory artifact is short-lived and for migration planning only.
 
+## First successful backup inventory (2026-11-02)
+
+The isolated SQL Server 2022 restore workflow completed successfully for all three backups. The uploaded artifact contains metadata only and expires after seven days. It did not upload database files or table rows.
+
+| Backup | Restored logical database | User tables | Views | Stored procedures | User table columns |
+|---|---|---:|---:|---:|---:|
+| `Db_Membership_20200702.BAK` | `Db_Membership_Data` | 34 | 7 | 59 | 285 |
+| `Db_Tank41.BAK` | `DDTMixTankAc` | 71 | 15 | 300 | 902 |
+| `Db_Tank_20200702.BAK` | `Db_Tank` | 80 | 0 | 162 | 820 |
+
+Additional findings:
+- The three backups are not duplicates. They have different schemas and logical database names.
+- The membership backup contains account/website-oriented tables such as `Mem_Users`, `Mem_UserInfo`, password reset and webshop tables. Do not bundle its historical user rows into a fresh single-player release.
+- `Db_Tank41` contains live player/game state tables such as `Sys_User_Info`, `Sys_Users_Detail`, `Sys_Users_Goods`, `Sys_Users_Pet`, `Sys_Users_Friends`, `QuestData`, `Consortia`, and `User_Messages`.
+- `Db_Tank` contains game reference/configuration tables such as `LevelInfo`, `Game_Map`, `Quest`, `NPC_Info`, `Pet_Template_Info`, `Item_Strengthen`, `Shop_Goods`, and `Achievement`.
+- The static source scan examined 4,171 C# files, found 43 files directly referencing SqlClient, and identified 153 distinct stored-procedure names by pattern scan. The scan is not exhaustive: procedure names built dynamically or hidden behind helper methods may not be detected.
+- Legacy `Center.Service/App.config` also references a `Db_Count` database, but no separate `Db_Count` backup is present in the current `Db/` directory listing. Its role must be traced; it must not silently be mapped to another database.
+
+These counts describe database objects, not required portable features. The next step is to trace the actual startup and gameplay call graph and classify the procedures/tables into required, optional, and obsolete domains. The current data inventory is too large to justify a wholesale automatic SQLite conversion.
+
+## CI inspection artifact
+
+The successful first run is [workflow run 41420505591](https://github.com/KaraChicken/DD/actions/runs/41420505591). Its metadata-only artifact is [ddtank-database-metadata-inventory](https://github.com/KaraChicken/DD/actions/runs/41420505591) (seven-day retention). Re-run the workflow to regenerate it; never commit restored database files or user data.
+
 ## Target architecture
 
 Preferred target: SQLite, using a bundled managed provider, with one or more local database files under `%LOCALAPPDATA%/DDTank/data`. SQLite is embedded in the application process and does not require a database server or Windows service.
