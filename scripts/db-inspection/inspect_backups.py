@@ -37,11 +37,17 @@ def docker(*args: str, input_text: str | None = None) -> str:
     return result.stdout
 
 
-def sql(query: str) -> str:
+def sql(query: str, unlimited: bool = False) -> str:
+    options = ["-b", "-s", "|"]
+    if unlimited:
+        # -y 0 cannot be combined with -W or -h in sqlcmd.
+        options.extend(["-y", "0", "-w", "65535"])
+    else:
+        options.extend(["-W", "-h", "-1"])
     return docker(
         "exec", "-i", CONTAINER, SQLCMD,
         "-S", "localhost", "-U", "sa", "-P", PASSWORD, "-C",
-        "-b", "-h", "-1", "-s", "|", "-y", "0", "-w", "65535", "-Q", query,
+        *options, "-Q", query,
     )
 
 
@@ -69,8 +75,11 @@ def selected_procedure_definitions(db_name: str, names: list[str]) -> list[dict]
     ORDER BY p.name
     FOR JSON PATH;
     """
-    output = sql(query)
-    payload = "".join(line.strip() for line in output.splitlines() if line.strip())
+    output = sql(query, unlimited=True)
+    lines = [line.strip() for line in output.splitlines() if line.strip()]
+    # sqlcmd prints a JSON column header and separator when -h cannot be used.
+    payload_lines = [line for line in lines if not line.startswith("JSON_F52E2B61") and not set(line) <= {"-", " "}]
+    payload = "".join(payload_lines)
     if not payload:
         return []
     return json.loads(payload)
