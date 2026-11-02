@@ -177,7 +177,7 @@ VALUES ($version, $appliedUtc);";
                     {
                         version.CommandText = "PRAGMA reference_seed.user_version;";
                         var seedVersion = Convert.ToInt32(version.ExecuteScalar(), CultureInfo.InvariantCulture);
-                        if (seedVersion != 1)
+                        if (seedVersion != 2)
                             throw new InvalidOperationException("Unsupported character reference seed schema version: " + seedVersion);
                     }
 
@@ -196,6 +196,14 @@ CREATE TABLE IF NOT EXISTS ShopGoods (
     Defence INTEGER NOT NULL,
     Agility INTEGER NOT NULL,
     Luck INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS CharacterDefaults (
+    Sex INTEGER NOT NULL PRIMARY KEY,
+    ArmTemplateId INTEGER NOT NULL,
+    HairTemplateId INTEGER NOT NULL,
+    FaceTemplateId INTEGER NOT NULL,
+    ClothTemplateId INTEGER NOT NULL,
+    HatTemplateId INTEGER NOT NULL
 );
 CREATE TABLE IF NOT EXISTS BagInit (
     Id INTEGER NOT NULL PRIMARY KEY,
@@ -217,6 +225,7 @@ CREATE TABLE IF NOT EXISTS BagInit (
 
                         ImportReferenceTable(connection, transaction, "ShopGoods");
                         ImportReferenceTable(connection, transaction, "BagInit");
+                        ImportReferenceTable(connection, transaction, "CharacterDefaults");
                         transaction.Commit();
                     }
                 }
