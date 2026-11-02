@@ -148,7 +148,7 @@ VALUES ($version, $appliedUtc);";
 
 
         /// <summary>
-        /// Imports the version-1 character reference seed produced by the isolated backup
+        /// Imports the version-2 character reference seed produced by the isolated backup
         /// migration workflow. Existing complete tables are left unchanged; partial imports fail.
         /// </summary>
         public void ImportCharacterReferenceSeed(string seedDatabasePath)
