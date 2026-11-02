@@ -62,6 +62,17 @@ namespace DDTank.LocalData
             try
             {
                 connection.Open();
+                var latin1CompareInfo = CultureInfo.GetCultureInfo("en-US").CompareInfo;
+                connection.CreateCollation("SQL_Latin1_General_CP1_CI_AS", (left, right) =>
+                {
+                    if (ReferenceEquals(left, right))
+                        return 0;
+                    if (left == null)
+                        return -1;
+                    if (right == null)
+                        return 1;
+                    return latin1CompareInfo.Compare(left, right, CompareOptions.IgnoreCase);
+                });
                 using (var command = connection.CreateCommand())
                 {
                     command.CommandText = "PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;";
