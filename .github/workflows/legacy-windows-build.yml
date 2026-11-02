@@ -48,12 +48,72 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+  build-character-reference-seed:
+    name: Build filtered SQLite character reference seed
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Start ephemeral SQL Server 2022
+        run: |
+          PASSWORD="$(python3 -c 'import secrets; print("Aa9!" + secrets.token_urlsafe(24) + "Z7#")')"
+          echo "::add-mask::$PASSWORD"
+          echo "MSSQL_SA_PASSWORD=$PASSWORD" >> "$GITHUB_ENV"
+          docker run --name ddtank-sqlserver-seed \
+            -e ACCEPT_EULA=Y \
+            -e MSSQL_PID=Developer \
+            -e MSSQL_SA_PASSWORD="$PASSWORD" \
+            -p 1433:1433 -d mcr.microsoft.com/mssql/server:2022-latest
+
+          for attempt in $(seq 1 60); do
+            if docker exec ddtank-sqlserver-seed \
+              /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$PASSWORD" -C -Q "SELECT 1" >/dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 5
+          done
+          docker logs ddtank-sqlserver-seed
+          exit 1
+
+      - name: Restore backups and build filtered SQLite seed
+        run: python3 scripts/db-inspection/inspect_backups.py
+
+      - name: Setup .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Validate actual seed and first-character migration
+        run: dotnet run --project LocalData.SmokeTest/LocalData.SmokeTest.csproj --configuration Release -- artifacts/database-inspection/character-reference-seed.sqlite3
+
+      - name: Upload character reference seed
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ddtank-character-reference-seed
+          path: artifacts/database-inspection/character-reference-seed.sqlite3
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Remove ephemeral SQL Server
+        if: always()
+        run: docker rm -f ddtank-sqlserver-seed || true
+
   build-localdata:
     name: Build and test embedded SQLite foundation
+    needs: build-character-reference-seed
     runs-on: windows-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Download actual character reference seed
+        uses: actions/download-artifact@v4
+        with:
+          name: ddtank-character-reference-seed
+          path: artifacts/database-inspection
 
       - name: Setup .NET 10 SDK
         uses: actions/setup-dotnet@v4
@@ -66,16 +126,23 @@ jobs:
       - name: Build local database library
         run: dotnet build LocalData/DDTank.LocalData.csproj --configuration Release --no-restore
 
-      - name: Run SQLite initialization, persistence, and backup smoke test
-        run: dotnet run --project LocalData.SmokeTest/LocalData.SmokeTest.csproj --configuration Release
+      - name: Run SQLite account and first-character smoke test with actual seed
+        run: dotnet run --project LocalData.SmokeTest/LocalData.SmokeTest.csproj --configuration Release -- artifacts/database-inspection/character-reference-seed.sqlite3
 
 
   build-webmodern:
     name: Build replacement ASP.NET Core web host
+    needs: build-character-reference-seed
     runs-on: windows-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Download character reference seed for portable host
+        uses: actions/download-artifact@v4
+        with:
+          name: ddtank-character-reference-seed
+          path: WebModern/Seeds
 
       - name: Setup .NET 10 SDK
         uses: actions/setup-dotnet@v4
